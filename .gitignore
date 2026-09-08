@@ -1,0 +1,25 @@
+# Your own work. Copy exercises here before editing them -- see the README.
+my-work/
+
+# Bookkeeping from sync.R, and the copies it leaves when you have edited a
+# course file it wanted to update.
+.sync-state
+*.new
+
+# R / RStudio
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*_cache/
+*_files/
+figure/
+
+# Rendered output from your own knitting
+*.html
+*.pdf
+*.log
+*.aux
+
+# macOS
+.DS_Store

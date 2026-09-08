@@ -1,0 +1,511 @@
+---
+title: "Monte Carlo Integration"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(49482)
+library(tidyverse)
+```
+
+# Integrals as Expectations
+
+## Expectation
+
+Suppose we are going to compute $g(X)$ for a random variable $X$.
+
+We often want to "average over" $X$ to get a sense of a typical value for $g(X)$. We define the **expectation** of $g(X)$ as:
+\[
+\begin{aligned}
+E(g(X)) &= \sum_{i=-\infty}^\infty P(X = x) g(x) & \text{(discrete)}\\
+E(g(X)) &= \int_{-\infty}^\infty g(x) f(x) \, dx & \text{(continuous)}
+\end{aligned}
+\]
+We call the **expectation of the identity function**, $E(X)$ the **mean of $X$**.
+
+We call $E\left[(X - E(X))^2\right]$ the **variance**.
+
+## Expectation and Inference
+
+Recall, a **parameter** is an **unknown quantity** in a statistical model.
+
+We previously discussed two forms of **statistical inference** for parameters:
+
+- **Estimation**: making informed guesses about population values.
+- **Testing**: checking if the data conform to a specific value of the parameter.
+
+Expectations are useful for both:
+
+- Important **operating characteristics** of estimators (e.g. bias)
+- Computing **Type I and Type II** error rates of tests
+- Many parameters can be **expressed as expectations**.
+
+## Monte Carlo Integration
+
+Recall your introduction performing integrals using **Riemann sums**:
+$$\int_a^b h(x) \, dx \approx \sum_{i = 0}^n  h(a + di/2) \times d, \quad d = \frac{b - a}{n}$$
+(or using the trapezoid rule or any other similar technique).
+
+Straightforward, but
+
+- How do you pick $d$? Alternatively, if spacing is unequal, how do you pick the regions?
+- When integrating in $k$-dimensions we need to take $n^k$ samples (gets big fast!)
+
+Solution: let $h(x)$ help us pick the most important regions and integrate using randomly selected points.
+
+## Example: Universal function integrator
+
+Suppose we want to evaluate a complex function over the region 0 to 1 (for a math class).
+
+For example,
+$$\int_0^1 \left(\log\left(\frac{1}{x}\right)\right)^3 \, dx$$
+
+This integral doesn't have a **closed form solution**, so our usual techniques do not work. (BTW: This is the $\Gamma(4)$ function.)
+
+## Example continued
+
+Recall: if $U \sim U(0,1)$ then the density function is $f(u) = 1$.
+
+$$\int_0^1 \left(\log\left(\frac{1}{x}\right)\right)^3 \, dx = \int_0^1 \left(\log\left(\frac{1}{x}\right)\right)^3 f(x) \, dx  = E\left(g(U)\right)$$
+where
+$$g(X) =\left(\log\left(\frac{1}{x}\right)\right)^3$$
+Conveniently, computers are great at generating lots of $U(0,1)$ random variables!
+
+We'll **approximate $E(g(U))$** with **the sample mean of $g(U_i)$**.
+
+## Monte Carlo Gamma Function
+
+We **estimate the integral** using draws from $U(0,1)$ and the sample mean of the function values:
+
+```{r }
+g <- function(u) { log(1/u)^3 }
+mean(g(runif(1000000)))
+```
+
+Since the exponent was integer, $\Gamma(a) = (a - 1)!$, in this case **3! = 6**.
+
+## Monte Carlo integration: the general case.
+
+We wish to estimate $\int_a^b g(x) \, dx$. Suppose $X$ is a random variable with:
+
+- Support $[a, b]$ (where either $a \rightarrow -\infty$ or $b \rightarrow \infty$)
+- Density $f(x)$ that is non-zero over $[a, b]$
+
+then
+$$\int_a^b g(x) \, dx = \int_a^b g(x) \frac{f(x)}{f(x)} \, dx  = \int_a^b \frac{g(x)}{f(x)} f(x) \, dx  = \E{h(X)}$$
+    where $h(x) = g(x) / f(x)$.
+
+Sample from $X$ i.i.d. and estimate using $(1/n) \sum_{i=1}^n g(X_i)/f(X_i)$.
+
+## Example: Integral of $1/2^x$
+
+Suppose we need to compute
+$$\int_0^\infty \frac{1}{2^x} \, dx$$
+
+What kind of distribution has the support $[0, \infty)$?
+
+The **exponential distribution** has
+
+- Support $[0, \infty)$
+- Density function $f(x) = \exp\{-x\}$ (keeping the usual parameter $\lambda = 1$)
+- Random number generator `rexp`
+
+## Example continued
+
+We've identified a variable on $[0, \infty)$, what expectation should we estimate?
+
+Let $g(x) = 1/2^x$.
+$$\int_0^\infty g(x) \, dx = \int_0^\infty \frac{g(x)}{\exp\{-x\}} \exp\{-x\} \, dx = \E{h(X)}$$
+
+```{r echo=FALSE}
+set.seed(393921292)
+```
+
+## Implementing
+
+```{r }
+g <- function(x) {
+  1/(2^x)
+}
+h <- function(x) { g(x) / dexp(x) } ## R's exp. density function
+```
+
+```{r }
+k <- 100000
+hX <- h(rexp(k))
+mean(hX)
+```
+
+```{r }
+1/log(2)
+```
+
+## Distributions in R
+
+R has a naming convention for functions related to **distributions** based on **prefixes**:
+
+- `r`: generated random values from the distribution (deviates)
+- `d`: evaluates the probability density or mass function at its argument
+- `p`: implements the CDF for $P(X \le x)$
+- `q`: implements the quantile function (inverse of CDF) and finds $x$ such that $P(X \le x) = p$.
+
+See `?Distributions` for a list of built in distributions with these functions.
+
+## Monte Carlo: Special case
+
+Sometimes the quantity we want **is already an expectation**:
+$$E(g(X)) = \int g(x) f(x) \, dx$$
+for a random variable $X$ we know how to sample. Then there is **no trick at all**: sample from $X$ and average $g(X_i)$.
+
+Example: $X \sim \text{Exp}(1)$, estimate $E\left(\log(1 + X)\right)$:
+
+```{r }
+mean(log(1 + rexp(100000)))
+```
+
+The density $f$ never appears in the code — it is baked into `rexp`.
+
+# Why It Works
+
+## Estimating a mean (in general)
+
+Why does this work? Suppose that $X_i \iid F$ and $E(g(X)) < \infty$. The **sample mean of $g(X_i)$** is **unbiased** for the population quantity **$E(g(X))$**.
+
+\[
+\begin{aligned}
+E\left(\frac{1}{n} \sum_{i=1}^n g(X_i)\right) &= \frac{1}{n} \sum_{i=1}^n E(g(X_i)) \\
+&= \frac{1}{n} n E\left(g(X_1)\right) \\
+&= E(g(X))
+\end{aligned}
+\]
+
+Provided we can sample from $F$, **the sample mean is a good estimator of $E(g(X))$**.
+
+## Larger sample $\rightarrow$ better estimates
+
+```{r }
+g <- function(u) { log(1/u)^3 }
+ms <- map_dbl(2:20, ~ mean(g(runif(2^.x))))
+```
+
+```{r echo=FALSE, fig.height=2.5, fig.width=6}
+par(mar = c(4,4,0,0))
+plot(ms, xlab = "Sample Size (log_2)", ylab = "Estimate", type = 'b')
+abline(h = 6, col ="red", lty = 2)
+```
+
+## Convergence of Estimates
+
+When $\E{g(X)} < \infty, \E{g(X)^2} < \infty$ and $X_i$ are IID, by the **weak law of large numbers**,
+$$\hat \theta_n = \frac{1}{n} \sum_{i=1}^n g(X_i) \overset{P}{\rightarrow} \E{g(X)} = \theta$$
+as $n \rightarrow \infty$.
+
+Reminder: The notation $\overset{P}{\rightarrow}$ indicates "convergence in probability":
+$$\hat \theta_n \overset{P}{\rightarrow} \theta \equiv \lim_{n\rightarrow\infty} \Pr(|\hat \theta_n - \theta| < \epsilon) = 1, \quad \text{for any } \epsilon > 0$$
+In words: we can draw a large enough sample to concentrate all the probability of $\hat \theta_n$ within $\pm \epsilon$ of $\theta$.
+
+## Uncertainty in estimating $\E{g(X)}$
+
+Under these same conditions ($X_i \iid F, \E{g(X)} < \infty, \E{g(X)^2} < \infty$), the **central limit theorem** states:
+$$\frac{\hat \theta_n - \theta}{\hat s_n/\sqrt{n}} \overset{D}{\rightarrow} N(0, 1) \quad \text{(convergence in distribution)}$$
+where:
+$$\hat \theta_n = \frac{1}{n} \sum_{i=1}^n g(X_i), \quad \hat s_n = \sqrt{\frac{1}{n - 1} \sum_{i=1}^n (g(X_i) - \hat \theta_n)^2}$$
+
+## Confidence Intervals for $\theta$
+
+Our Monte Carlo answer is an **estimate**, not an exact solution, so we report a **confidence interval** (a plausible range) for the value of the integral.
+
+By the CLT,
+$$\hat \theta_n \approx N(\theta, \tau^2/n), \quad \tau^2 = \text{Var}(g(X))$$
+an approximate $100 \times (1 - \alpha) \%$ **confidence interval for $\theta$** is given by:
+$$\hat \theta \pm t_{\alpha/2}(n - 1) \times \hat s / \sqrt{n} $$
+where $t_{\alpha/2}(n - 1)$ is the $\alpha/2$ quantile of Student's $t$-distribution with $n - 1$ degrees of freedom.
+
+## Confidence Intervals in R
+
+To estimate
+$$\int_0^\infty \frac{1}{2^x} \, dx$$
+we used an exponential random variable so generate the estimate:
+
+```{r }
+mean(hX)
+```
+
+To add a 99.9\% confidence intervals:
+
+```{r }
+## t.test will do other things, we only need the conf.int
+t.test(hX, conf.level = 0.999)$conf.int
+```
+
+## Confidence Intervals with Larger Samples
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+js <- seq(100, length(hX), length.out = 100) %>% round
+cis <- sapply(js, function(j) { t.test(hX[1:j], conf.level = 0.999)$conf.int})
+tmp <- data.frame(t(cis))
+colnames(tmp) <- c("lower", "upper")
+tmp$size <- js
+ggplot(tmp, aes(x = size)) + geom_line(aes(y = lower)) + geom_line(aes(y = upper))
+```
+
+# Probabilities and CDFs
+
+## Probability as an Integral
+
+Many statistical tasks can be viewed as taking an expectation for a suitable function $g$.
+
+In particular, if $g$ is an **indicator function**, then the expectation of $g$ is a **probability**.
+
+**Indicator functions**:
+\[
+\ind(s) = \left\{ \begin{array}{lc} 1 &: s \text{ is true} \\ 0 &: s \text{ is false} \end{array} \right.
+\]
+
+Note: In R we get indicators "for free" by writing things like: `x <= 3`.
+
+## Expectation of Indicators
+
+Suppose we have a **continuous random variable $X$** and **$g$ be an indicator function**. For example, $g(X) = \ind(X > 3)$.
+
+Since $g(X)$ can be either 1 or 0 (it is a **random variable**), let **$A$ be the event** (values of $X$) that $g(X)$ is 1.
+
+**Notice**: $A$ and $A^c$ partition the sample space.
+
+**Claim**: $E(g(X)) = P(A)$
+
+Example: $E(\ind(X  > 3)) = P(X > 3)$
+
+## Proof
+
+Remember: $g(X) = 1$ if $A$ is true and $g(X) = 0$ if $A^c$ is true ("not $A$").
+\[
+\begin{aligned}
+    E(g(X)) &= \int_{-\infty}^\infty g(x) f(x) \, dx  \\
+    &= \int_A  1 \times f(x) \, dx  + \int_{A^c} 0 \times f(x) \, dx  \\
+    &= \int_A f(x) \, dx  \\
+    &= P(A)
+\end{aligned}
+\]
+
+## Estimating a Cumulative Distribution Function
+
+The CDF of a (continuous) random variable is defined as:
+$$F(t) = P(X \le t) = E(\ind(X \le t))$$
+
+The **empirical CDF** is then the sample mean of $\ind(X_i \le t)$:
+$$\hat F_n(t) = \frac{1}{n} \sum_{i=1}^n \ind(X_i \le t)$$
+
+This is the **first case** again: the density is already inside the integral, so we sample $X$ directly and average — no multiply/divide needed.
+
+## Example: Normal CDF
+
+The CDF of the Normal distribution **does not have a closed form**.
+
+For $X \sim N(0, 1)$, let's estimate $P(X \le 1.96)$.
+
+```{r }
+xs <- rnorm(1e5)
+mean(xs <= 1.96)
+```
+
+##
+
+```{r echo=FALSE, fig.height=3.5, fig.width=6}
+par(mar = c(4, 4, 2, 0))
+grid <- seq(-2, 2, length.out = 200)
+plot(grid, sapply(grid, function(g) { mean(xs <= g)}), type = 'l', xlab = "x", ylab = "F(x)")
+curve(pnorm(x), add = TRUE, col = "red", lty = 2, lwd = 3)
+```
+
+## Better Confidence Intervals for Estimated Probabilities
+
+The **$t$-distribution intervals** we used earlier would work when estimating a probability, but **we can do slightly better**.
+
+Consider the random variable $W = \ind(X \le t)$. **What is this?**
+
+- $W$ can take values of 0 or 1
+- $P(W = 1) = P(X \le t) = \theta$, $P(W = 0) = 1 - \theta$.
+- $W$ is **Bernoulli**!
+
+We have to estimate $\theta$ (our goal anyway), but this means we can use **confidence intervals for proportions** (i.e., `binom.test` instead of `t.test`).
+
+```{r }
+binom.test(sum(xs <= 1.96), n = length(xs))$conf.int
+```
+
+# Higher Dimensional Problems
+
+## Integrals in more than one dimension
+
+Nothing in our recipe was one-dimensional. To integrate over a region of $\mathbb{R}^k$: sample a random **vector**, apply $g$, average.
+
+The classic double integral — the area of the unit circle:
+$$\pi = \int_{-1}^{1} \int_{-1}^{1} \ind(x^2 + y^2 \le 1) \, dx \, dy$$
+
+Take $X, Y \iid U(-1, 1)$, so the joint density is $f(x, y) = 1/4$ on the square. Multiply and divide:
+$$\pi = 4 \int_{-1}^{1} \int_{-1}^{1} \ind(x^2 + y^2 \le 1) \, \tfrac{1}{4} \, dx \, dy = 4 \, \E{\ind(X^2 + Y^2 \le 1)}$$
+
+## Throwing darts at a square
+
+```{r }
+n <- 100000
+x <- runif(n, -1, 1); y <- runif(n, -1, 1)
+inside <- x^2 + y^2 <= 1
+4 * mean(inside)
+4 * binom.test(sum(inside), n)$conf.int
+```
+
+An indicator again, so `binom.test` gives the confidence interval — everything from the last section carries straight over.
+
+##
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+par(mar = c(2, 2, 0.5, 0.5), pty = "s")
+show <- 1:3000
+plot(x[show], y[show], col = ifelse(inside[show], "red", "grey60"),
+     pch = 16, cex = 0.3, xlab = "", ylab = "", asp = 1)
+theta <- seq(0, 2 * pi, length.out = 400)
+lines(cos(theta), sin(theta), lwd = 2)
+```
+
+## Aside: big-O notation
+
+The CLT says the Monte Carlo error shrinks like $1/\sqrt{n}$. Is that fast?
+
+To compare methods, we describe **how fast the error shrinks** as $n$ grows:
+$$\text{error} = O\left(g(n)\right)$$
+means: for some constant $C$, $|\text{error}| \le C \, g(n)$ for all large $n$.
+
+The constant is deliberately ignored — big-O records the **rate**, which dominates once $n$ is large.
+
+A better rate always wins *eventually* — the question is how large $n$ has to be first.
+
+## MC Error Rate $O(n^{-1/2})$
+
+Recall the **standard deviation of a sample mean**:
+$$\Var{\hat \theta_n} = \Var{\frac{1}{n} \sum_{i=1}^n g(X_i)} = \frac{1}{n^2} \sum_{i=1}^n \Var{g(X_i)} = \frac{\tau^2}{n}, \quad \tau^2 = \Var{g(X)}$$
+
+so the typical error is
+$$\sqrt{\tau^2 / n} = \tau \, n^{-1/2}$$
+
+The population variance $\tau^2$ sets the **constant**; $n$ sets the **rate**. So the error rate of Monte Carlo is $O(n^{-1/2})$. Notice that this **does not depend on $k$** -- though the constant $\tau$ typically grows with $k$.
+
+## Grid search error rate $O(n^{-2/k})$
+
+Take one cell of width $d$ with midpoint $m$, and Taylor expand the integrand:
+$$h(x) = h(m) + h'(m)(x - m) + \tfrac{1}{2} h''(\xi) (x - m)^2$$
+
+- Integrating over the cell, the **linear term vanishes**: $(x - m)$ is symmetric about the midpoint. 
+- The leftover per cell is $\tfrac{1}{2} h'' \int_{\text{cell}} (x - m)^2 \, dx \approx h'' \, d^3 / 24$.
+- Summing over the $(b - a)/d$ cells: total error $\approx (b - a) \, \overline{h''} \, d^2 / 24 = O(d^2)$.
+- With $n$ points, $d = (b - a)/n$, so the error is $O(n^{-2})$.
+- In $k$ dimensions, $n$ points make the cells $d \propto n^{-1/k}$ wide: error $= O(d^2) = O(n^{-2/k})$.
+
+## Comparison using larger samples, more grid points.
+
+```{r echo=FALSE, fig.height=2.6, fig.width=6}
+par(mar = c(4.2, 4, 0.5, 7.5), xpd = NA)
+n <- 10^seq(2, 6, length.out = 200)
+plot(n, n^(-1/2), log = "xy", type = "l", lwd = 3, col = "red",
+     ylim = c(1e-12, 1), xlab = "n (total function evaluations)",
+     ylab = "error (up to a constant)")
+for (k in c(1, 4, 20)) lines(n, n^(-2/k), lty = 2)
+text(2e3, 1.8 * (2e3)^(-1/2), "Monte Carlo (every k)", col = "red", adj = c(0, 0))
+text(1.4e6, 1e6^(-2/20), "grid, k = 20", adj = 0)
+text(1.4e6, 1e6^(-2/4), "grid, k = 4 (tie)", adj = 0)
+text(1.4e6, 1e6^(-2/1), "grid, k = 1", adj = 0)
+```
+
+Most real world problems are high dimensional (like linear regression). For this class we will tend to work with simpler examples.
+
+## Putting it to the test: a high-dimensional CDF
+
+We just estimated the Normal CDF in one dimension. Now the **joint CDF** of $Z_1, \ldots, Z_k \iid N(0,1)$, evaluated at $(1, \ldots, 1)$:
+$$\theta_k = F(1, \ldots, 1) = P\left(Z_1 \le 1, \ldots, Z_k \le 1\right) = \int_{-\infty}^{1} \!\!\cdots\! \int_{-\infty}^{1} \prod_{j=1}^k \phi(z_j) \, dz = \Phi(1)^k$$
+The exact answer is known, so we can score both methods. **Same budget for both**: $10^5$ function evaluations.
+
+- Grid: needs a *bounded* box first — chop at $-8$, where $\Phi(-8) \approx 6 \times 10^{-16}$. Then $m = \lfloor (10^5)^{1/k} \rfloor$ midpoints per axis on $[-8, 1]^k$.
+- Monte Carlo: $10^5$ draws of $Z \in \mathbb{R}^k$ — no box needed.
+
+(Because the integrand factors, the $k$-dimensional midpoint value is just the 1-D midpoint value to the $k$-th power — we can *score* the full grid without enumerating it.)
+
+## The code
+
+```{r }
+exact1 <- pnorm(1)  # one axis: P(Z <= 1)
+n <- 1e5
+grid_err <- map_dbl(1:10, function(k) {
+  m <- floor(n^(1 / k) + 1e-9)               # points per axis
+  mids <- seq(-8 + 4.5/m, 1 - 4.5/m, length.out = m)
+  I1 <- sum(dnorm(mids)) * (9 / m)           # 1-D midpoint rule
+  abs(I1^k - exact1^k)                       # grid value is I1^k
+})
+mc_err <- map_dbl(1:10, function(k) {
+  zs <- matrix(rnorm(n * k), ncol = k)
+  abs(mean(rowSums(zs <= 1) == k) - exact1^k)
+})
+```
+
+##
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+par(mar = c(4.2, 4, 0.5, 1))
+ks <- 1:10
+mc_se <- sqrt(exact1^ks * (1 - exact1^ks) / n)
+plot(ks, grid_err, log = "y", type = "b", lty = 2, pch = 1,
+     ylim = range(c(grid_err, mc_err, mc_se)),
+     xlab = "dimension k", ylab = "|error|")
+points(ks, mc_err, col = "red", pch = 16)
+lines(ks, mc_se, col = "red", lwd = 2)
+legend("bottomright", c("grid (midpoint rule)", "Monte Carlo (one run)", "Monte Carlo std. error"),
+       pch = c(1, 16, NA), lty = c(2, NA, 1), col = c("black", "red", "red"), bty = "n", cex = 0.8)
+```
+
+<!--
+## The arithmetic at $k = 20$
+
+Even a coarse grid, 10 points per axis, in 20 dimensions: $10^{20}$ evaluations.
+
+At a billion evaluations per second, that is about **3,000 years**.
+
+Monte Carlo gets 3 digits from $10^6$ draws in **seconds** — in any dimension.
+
+Bonus: the grid must be laid down **before** you know where $f$ puts its mass; sampling from $f$ concentrates the evaluations there automatically.
+
+## Checking it in $k = 10$
+
+For $Z_1, \ldots, Z_{10} \iid N(0,1)$, estimate $P(\max_j |Z_j| \le 1)$ — which we can verify exactly: $(2\Phi(1) - 1)^{10}$.
+
+```{r }
+k <- 10; n <- 1e6
+zs <- matrix(rnorm(n * k), ncol = k)
+mean(rowSums(abs(zs) <= 1) == k)
+(2 * pnorm(1) - 1)^10
+```
+
+A ten-dimensional integral, one million draws, three matching digits.
+-->
+
+## Monte Carlo Integration: Summary
+
+- Monte Carlo turns an integral into a **sampling problem**.
+- To estimate $\int_a^b g(x) \, dx$: pick a density $f$ positive on $[a, b]$, sample $X_i \iid f$, average $g(X_i)/f(X_i)$.
+- If the target is already $\E{g(X)}$: sample and average, no ratio needed.
+- R functions for RVs: r` samples, `d` is the density (`p`, `q` for CDF and quantiles).
+- The sample mean is **unbiased** and **consistent** (LLN); the CLT gives **confidence intervals** using `t.test`.
+- Probabilities are expectations of **indicators**, but use `binom.test` for CI.
+- Multiple dimensions: sample a random **vector**, apply $g$, average.
+- Error is $O(n^{-1/2})$ **in every dimension**; grids are $O(n^{-2/k})$, poor for large $k$.
+
