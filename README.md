@@ -54,24 +54,28 @@ git clone https://github.com/markmfredrickson/datasci406.git
 Open `datasci406.Rproj` first. It sets your working directory to the top of
 this folder, which is what makes the data paths in the exercises resolve.
 
-**Copy a file before you edit it.** Put your copy in `my-work/`, keeping the
-module folder around it:
+**Work in `my-work/`.** Sync has already put your own copy of each exercise
+there:
 
 ```
-my-work/01-integrate/project.Rmd
+my-work/01-integrate/01-monte-carlo-integration-exercises.Rmd
 ```
 
-The module folder matters — the exercises load data with a path like
-`../../data/fish.csv`, which only points at `data/` if your file is two levels
-down. Nothing ever writes into `my-work/`: re-downloading skips it, and git
-ignores it. Anything you leave outside it can be overwritten by an update.
+Edit those, not the ones in `modules/`. Sync copies a file into `my-work/` once
+and then leaves it alone forever — it will never overwrite anything you have
+written there, however many times you run it. Want a clean copy of something?
+Delete yours and sync again.
+
+The originals under `modules/` keep updating, so you can always compare your
+version against the current one. Anything you edit *outside* `my-work/` can be
+overwritten by an update.
 
 ## Layout
 
 ```
 modules/     one folder per module — exercises and project templates
 data/        datasets, loaded from a module folder as ../../data/<file>
-my-work/     yours; create it, git ignores it
+my-work/     your copies of the exercises; sync never overwrites these
 ```
 
 ## A note on this repository
