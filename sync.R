@@ -2,6 +2,10 @@
 #
 #   source("https://markmfredrickson.github.io/datasci406/sync.R")
 #
+# Once you have the project open, the short form works too:
+#
+#   source("sync.R")
+#
 # Needs nothing but R: no git, no GitHub account, no extra packages. Run it
 # again whenever new material is announced.
 #
@@ -122,9 +126,11 @@ datasci406_sync <- function(dest = NULL, url = DATASCI406_URL, quiet = FALSE) {
 
   if (fresh) {
     say("\nOpen this file to get started:\n  ",
-        normalizePath(file.path(dest, "datasci406.Rproj"), mustWork = FALSE), "\n")
+        normalizePath(file.path(dest, "datasci406.Rproj"), mustWork = FALSE), "\n",
+        "\nOnce it is open, update any time with:  source(\"sync.R\")\n")
+  } else {
+    say("\nUpdate any time with:  source(\"sync.R\")\n")
   }
-  say("\nRun datasci406_sync() again any time.\n")
   invisible(list(added = added, updated = changed, yours = yours,
                  removed = removed, seeded = seeded))
 }

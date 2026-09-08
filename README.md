@@ -17,9 +17,17 @@ source("https://markmfredrickson.github.io/datasci406/sync.R")
 ```
 
 The first time, it creates a `datasci406` folder and tells you where it is —
-open `datasci406.Rproj` inside it. After that, run the same line (or
-`datasci406_sync()`, which is already loaded) whenever new material is
-announced, and it will bring your folder up to date.
+open `datasci406.Rproj` inside it.
+
+After that you are inside the project, so the short form works and there is no
+URL to paste:
+
+```r
+source("sync.R")
+```
+
+Run it whenever new material is announced and it will bring your folder up to
+date.
 
 It will not overwrite your work:
 
