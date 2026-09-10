@@ -1,0 +1,264 @@
+---
+title: "Variance Reduction and Importance Sampling: Session Exercises"
+subtitle: "Module 1, Day 2 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+set.seed(40602)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+---
+
+# 1. Antithetic variables without uniforms
+
+The video built antithetic pairs from uniforms, because $U$ and $1 - U$ have
+the same distribution. But the idea is not about uniforms: it needs only
+some way to produce a second draw with **the same distribution** that is **negatively correlated**.
+
+For any *symmetric* distribution, negation is an easy way to achieve this result. If
+$Z \sim N(0,1)$ then $-Z \sim N(0,1)$ too, so $(Z, -Z)$ is an antithetic
+pair, and for monotone $h$ the pair $(h(Z), h(-Z))$ is negatively
+correlated.
+
+We will estimate
+$$\theta = \E{e^Z} = \int_{-\infty}^{\infty} e^z \phi(z) \, dz = e^{1/2} \approx 1.6487$$
+
+## Exercise
+
+**(a)** Estimate $\theta$ two ways with the same 10,000 evaluations of $h$:
+10,000 IID `rnorm` draws ($Z_i$), and 5,000 antithetic pairs
+$[e^{V_i} + e^{-V_i}]/2$. Report both estimates, the estimated variance of
+each *estimator*, and the percent variance reduction.
+
+Then compute `cor(exp(v), exp(-v))` on your 5,000 draws and put it next to
+the percent reduction. What do you notice?
+
+**(b)** A classmate objects that the pairing is only bookkeeping: the
+estimate is the average of all 10,000 values either way, so why not pool
+them and be done?
+
+```{r eval = FALSE}
+# remove eval = FALSE to run this chunk after creating v and antithetic pairs
+pooled <- c(exp(v), exp(-v))
+c(pooled = mean(pooled),           paired = mean(anti))
+c(pooled = var(pooled) / 10000,    paired = var(anti) / 5000)
+```
+
+One of those two comparisons agrees exactly and the other does not. Which
+variance is telling the truth? Settle it **empirically**: repeat the entire
+procedure 2,000 times and compare the actual variance of the 2,000 estimates
+against both candidates. The `replicate` function will be helpful.
+
+**(c)** Now try $h(z) = z^2$, so $\theta = \E{Z^2} = 1$. Something goes
+badly wrong. Why does that antithetic technique not work here?
+
+### Solution
+
+**(a)**
+
+```{r}
+n <- 10000
+
+iid <- exp(rnorm(n))
+v <- rnorm(n / 2)
+anti <- (exp(v) + exp(-v)) / 2
+
+c(iid = mean(iid), anti = mean(anti), truth = exp(0.5))
+(v_iid <- var(iid) / n)
+(v_anti <- var(anti) / (n / 2))
+1 - v_anti / v_iid
+cor(exp(v), exp(-v))
+```
+
+Both estimate the same thing up to sign. The pair average has variance
+$V(1+\rho)/2$ for $V = \Var{h(Z)}$, so at a matched budget the ratio to the
+IID estimator is $1+\rho$ and **reduction $= -\rho$**. Here
+$\rho = (1-e)/(e^2-e) = -1/e$. The two sample numbers won't match closely at
+$n = 10{,}000$ --- both are sample variances of a right-skewed quantity.
+
+**(b)**
+
+```{r}
+pooled <- c(exp(v), exp(-v))
+c(pooled = mean(pooled),        paired = mean(anti))
+c(pooled = var(pooled) / 10000, paired = var(anti) / 5000)
+
+ests <- replicate(2000, { vv <- rnorm(5000); mean((exp(vv) + exp(-vv)) / 2) })
+c(actual = var(ests), pooled_says = var(pooled) / 10000,
+  paired_says = var(anti) / 5000)
+```
+
+Same estimate (the mean of $2m$ values *is* the mean of the $m$ pair
+averages), wrong variance: pooling is about 1.6 times too big.
+
+`var(pooled)` estimates $\sigma^2 = \Var{e^Z}$, one evaluation of $h$.
+**You have $m$ independent things, not $2m$.**
+
+**(c)**
+```{r}
+hz <- rnorm(10000)^2
+mean(hz) ; var(hz) / 10000
+
+hv <- (v^2 + (-v)^2) / 2
+mean(hv) ; var(hv) / 5000
+cor(v^2, (-v)^2)
+```
+
+$\rho = +1$, variance **doubled**. $z^2$ is *even*, so the partner
+duplicates its mate: 10,000 evaluations, 5,000 distinct values. This is what
+monotone $h$ rules out.
+
+---
+
+# 2. Rare events
+
+Direct sampling is a bad way to estimate a small probability, because
+almost every draw contributes a zero. Importance sampling moves the
+sampling distribution to where the action is and reweights.
+
+## Exercise
+
+Estimate $\theta = P(Z \ge 3.5)$ for $Z \sim N(0,1)$; the exact value is
+`pnorm(3.5, lower.tail = FALSE)`.
+
+**(a)** Direct: 10,000 draws from `rnorm`, average the indicators, and give
+a 95% interval with the right tool. How many draws landed in the region?
+What are the only values this estimator can possibly return?
+
+**(b)** Importance sampling with a shifted exponential: draw
+$Y = 3.5 + \text{Exp}(\lambda)$, so
+$$g(y) = \lambda e^{-\lambda (y - 3.5)}, \quad y > 3.5,$$
+and every draw is in the tail. Then
+$$\theta = \E{\ind(Y \ge 3.5) \frac{\phi(Y)}{g(Y)}} = \E{\frac{\phi(Y)}{g(Y)}}.$$
+Run this with $\lambda = 1$ and 10,000 draws. Compare the estimated
+variance of the estimator with the exact variance of (a)'s.
+
+**(c)** Try $\lambda \in \{1, 2, 3, 4, 5, 8\}$. Which is best, and why is
+it not $\lambda = 1$? (Hint: what does the ideal envelope from the video
+look like here, and what is the shape of the normal density just past
+3.5?) Also print `range()` of the weights for your best $\lambda$ --- what
+does the video's safety condition say about them?
+
+### Solution
+
+**(a)**
+
+```{r}
+k <- 10000
+truth <- pnorm(3.5, lower.tail = FALSE)
+zs <- rnorm(k)
+sum(zs >= 3.5)
+mean(zs >= 3.5)
+binom.test(sum(zs >= 3.5), k)$conf.int
+truth
+```
+
+Expected count $10^4\theta \approx 2.3$, so the estimator returns a multiple
+of $0.0001$ --- a grid spaced at about *half* the answer. `binom.test`, since
+the terms are Bernoulli.
+
+**(b)**
+
+```{r}
+a <- 3.5
+ys <- rexp(k, rate = 1) + a
+w <- dnorm(ys) / dexp(ys - a, rate = 1)
+mean(w)
+(v_is <- var(w) / k)
+(v_direct <- truth * (1 - truth) / k)   ## exact, not estimated
+v_is / v_direct
+```
+
+About **3,500 times** less variance, from the same 10,000 draws.
+
+**(c)**
+
+```{r}
+for (lambda in c(1, 2, 3, 4, 5, 8)) {
+  ys <- rexp(k, lambda) + a
+  w <- dnorm(ys) / dexp(ys - a, lambda)
+  cat(sprintf("lambda %3.1f   estimate %.4e   var(term) %.3e\n",
+              lambda, mean(w), var(w)))
+}
+```
+
+Variance falls to $\lambda \approx 4$, then rises. $|h|f$ is $\phi$
+**restricted to the tail**, and
+$$\frac{\phi(3.5 + s)}{\phi(3.5)} = e^{-3.5 s - s^2/2},$$
+i.e. $\text{Exp}(3.5)$ with an extra squeeze --- so the best rate is just
+*above* 3.5. Mean excess
+`dnorm(3.5)/pnorm(3.5, lower.tail = FALSE) - 3.5` $\approx 0.25$ gives
+$\lambda \approx 4$. $\lambda = 8$ is worse than $\lambda = 1$: too light in
+the far tail (exercise 3).
+
+```{r}
+ys <- rexp(k, 4) + a
+w <- dnorm(ys) / dexp(ys - a, 4)
+range(w)
+c(estimate = mean(w), truth = truth)
+```
+
+**Bounded**: $\phi(y)/[4e^{-4(y-3.5)}]$ peaks at $y = 4$, at
+$\phi(4)e^2/4 \approx 2.47 \times 10^{-4}$ --- 6% above $\theta$. So
+$hf/g < c$, the variance is finite, the CLT applies. The ideal envelope would
+make these *exactly* constant.
+
+---
+
+# 3. Which direction of tail mismatch is safe?
+
+Exercise 2 ran into trouble with an envelope that was too *light* in the
+tail. This settles the general question with a matched pair of runs.
+
+## Exercise
+
+The Cauchy has heavy (polynomial) tails; the Normal has light
+(exponential-in-$x^2$) tails. Estimate a tail probability in each
+direction, five runs of 100,000 draws each:
+
+**(a)** target Cauchy, envelope Normal: $P(C \ge 2)$ using `rnorm` draws.
+
+**(b)** target Normal, envelope Cauchy: $P(Z \ge 2)$ using `rcauchy` draws.
+
+One of these is fine and the other is not. Which, and state the general
+rule in one sentence. Then explain it with the finite-variance condition
+$\E{h(X)^2 f(X) / g(X)} < \infty$ from the video.
+
+### Solution
+
+```{r}
+m <- 1e5
+
+## (a) Cauchy target, Normal envelope
+replicate(5, { ys <- rnorm(m); mean(dcauchy(ys) / dnorm(ys) * (ys >= 2)) })
+pcauchy(2, lower.tail = FALSE)
+
+## (b) Normal target, Cauchy envelope
+replicate(5, { ys <- rcauchy(m); mean(dnorm(ys) / dcauchy(ys) * (ys >= 2)) })
+pnorm(2, lower.tail = FALSE)
+```
+
+(a) lands near half the truth every run; (b) is good to three or four digits.
+
+**The rule: the envelope's tails must be at least as heavy as the target's.**
+
+$$\E{h(X)^2 \frac{f(X)}{g(X)}} = \int h(y)^2 \frac{f(y)^2}{g(y)} \, dy.$$
+In (a) that carries $e^{+y^2/2}$ over a polynomial and diverges: infinite
+variance. In (b), $e^{-y^2}$ times a polynomial, convergent. A light envelope
+reaches the far tail so rarely that those draws must carry enormous weights,
+and most runs miss them.
+
+---
