@@ -36,9 +36,9 @@ $B \sim \text{Beta}(4, 4)$, so the density is
 $$f(x) = \frac{1}{50} \, f_B(x / 50), \quad 0 \le x \le 50,$$
 where $f_B$ is the Beta(4, 4) density. In general the
 Beta$(\alpha, \beta)$ density on $[0, 1]$ is
-$$f_B(u) = \frac{1}{\mathcal{B}(\alpha, \beta)}\,
+$$f_B(u) = \frac{1}{\mathrm{B}(\alpha, \beta)}\,
   u^{\alpha - 1} (1 - u)^{\beta - 1}, \qquad 0 \le u \le 1,$$
-where $\mathcal{B}(\alpha,\beta) = \Gamma(\alpha)\Gamma(\beta)/\Gamma(\alpha+\beta)$
+where $\mathrm{B}(\alpha,\beta) = \Gamma(\alpha)\Gamma(\beta)/\Gamma(\alpha+\beta)$
 is the **beta function** --- whatever constant makes the thing integrate to
 one. It does not depend on $u$, which is why it drops out of most of what
 follows and matters in exactly one place, C.2.
@@ -191,12 +191,12 @@ this model and why it carries no information about $a$.)
 
 **Maximum likelihood.** Here the beta function finally earns its keep.
 Setting $\alpha = \beta = a$ in the density from the setting,
-$$f_B(u) = \frac{1}{\mathcal{B}(a, a)}\, u^{a - 1} (1 - u)^{a - 1},$$
+$$f_B(u) = \frac{1}{\mathrm{B}(a, a)}\, u^{a - 1} (1 - u)^{a - 1},$$
 and dividing by 50 for the scaling (A.1), gives Model B's density. With
 $u_i = x_i / 50$, show that the log-likelihood is
-$$\ell(a) = -n \log 50 - n \log \mathcal{B}(a,a)
+$$\ell(a) = -n \log 50 - n \log \mathrm{B}(a,a)
  + (a - 1) \sum_{i=1}^n \left[\log u_i + \log(1 - u_i)\right],$$
-where $\mathcal{B}$ is the beta function (`beta()` in R, `lbeta()` for its
+where $\mathrm{B}$ is the beta function (`beta()` in R, `lbeta()` for its
 log). Conclude that the data enters **only** through the single number
 $T = \sum_i [\log u_i + \log(1-u_i)]$.
 
