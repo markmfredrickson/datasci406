@@ -31,7 +31,7 @@ ggplot(perch, aes(x = length1)) + geom_histogram(bins = 10)
 Our model for perch length is supported on $[0, \theta]$, with $\theta = 50$
 cm taken as the largest a perch could plausibly be:
 
-**Model B**: a **scaled Beta**: $X = 50 B$ with
+**The model**: a **scaled Beta**: $X = 50 B$ with
 $B \sim \text{Beta}(4, 4)$, so the density is
 $$f(x) = \frac{1}{50} \, f_B(x / 50), \quad 0 \le x \le 50,$$
 where $f_B$ is the Beta(4, 4) density. In general the
@@ -50,9 +50,9 @@ fmod <- function(x) { dbeta(x / 50, 4, 4) / 50 }
 curve(fmod(x), from = -1, to = 55)
 ```
 
-Model B is a *guess*, not a fact. Its shape and its upper limit are both
-things we could be wrong about, and in **Part D** you will build a
-confidence region for them and find out whether this guess survives.
+The shape parameter here is a *guess*, not a fact. Part C estimates it from
+the data and Part D builds a confidence interval for it, so by the end you
+will know how much of a guess it was.
 
 Reminder: this document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
 
@@ -65,7 +65,7 @@ $X = 50 B$. **Prove** that
 $$F_X(x) = F_B(x / 50) \qquad \text{and} \qquad
 f_X(x) = \frac{1}{50} f_B(x / 50).$$
 
-Then **compute** the exact $F(20) = P(X \le 20)$ for Model B using `pbeta`.
+Then **compute** the exact $F(20) = P(X \le 20)$ using `pbeta`.
 We will treat this as the exact value for the rest of the project.
 
 ### A.2
@@ -88,15 +88,13 @@ interval and check against numerical integration:
 integrate(function(x) x * fmod(x), 0, 50)
 ```
 
-Model B is symmetric about 25, so you can also write down $\E{X}$ exactly
-in one line. Do so, and say which of your three numbers you trust most and
-why.
+The model is symmetric about 25, so $\E{X}$ is also available exactly in one
+line. Give it, and set all three numbers side by side.
 
 ### A.4
 
 Compare model to data: report the exact model probability $F(20)$ from A.1
 next to the observed fraction of the 56 perch with `length1` $\le 20$.
-Keep this comparison in mind --- we return to it in Part D.
 
 ### A.5
 
@@ -114,7 +112,7 @@ will check this answer in Part C.
 
 ### B.1
 
-Antithetic variables for the A.2 estimator. Model B has its mode at 25, so
+Antithetic variables for the A.2 estimator. The model has its mode at 25, so
 on $[0, 20]$ the density $f$ is strictly increasing (show this with a plot
 or a one-line argument), and therefore $h(v) = 20 f(v)$ is monotone and the
 pairs $(V, 20 - V)$ are negatively correlated.
@@ -123,8 +121,6 @@ Re-estimate $F(20)$ using 5,000 uniform draws $V_i$ paired with their
 antithetic partners $20 - V_i$ (10,000 function evaluations total, same as
 A.2). Report the estimate, the estimated variance of this estimator and of
 the A.2 estimator, and the percent variance reduction.
-
-Then say what would have gone wrong had we kept the interval at $[0, 30]$.
 
 ### B.2
 
@@ -163,14 +159,14 @@ report the realized interval and its width.
 
 # Part C: Monte Carlo for estimation
 
-Sampling from Model B is one line --- scale draws from `rbeta`:
+Sampling from the model is one line --- scale draws from `rbeta`:
 
 ```{r}
 rmod <- function(n) { 50 * rbeta(n, 4, 4) }
 ```
 
 So far $\text{Beta}(4,4)$ was handed to you. Now we estimate it. Keep the
-upper limit $\theta = 50$ fixed and keep the symmetry, so Model B has a
+upper limit $\theta = 50$ fixed and keep the symmetry, so the model has a
 **single unknown parameter** $a$:
 $$X = 50 B, \qquad B \sim \text{Beta}(a, a).$$
 Our working model is the case $a = 4$.
@@ -184,15 +180,16 @@ and hence that setting $\Var{X} = S^2$ and solving gives
 $$\tilde a = \frac{1}{2}\left(\frac{625}{S^2} - 1\right).$$
 Compute $\tilde a$ for the 56 perch.
 
-(Why is there no equation for the *mean* here? Say what $\E{X}$ is under
-this model and why it carries no information about $a$.)
+Note there is no second equation to solve: $\E{X} = 25$ for every $a$, so
+the mean carries no information about the parameter and the variance has to
+do all the work.
 
 ### C.2
 
 **Maximum likelihood.** Here the beta function finally earns its keep.
 Setting $\alpha = \beta = a$ in the density from the setting,
 $$f_B(u) = \frac{1}{\mathrm{B}(a, a)}\, u^{a - 1} (1 - u)^{a - 1},$$
-and dividing by 50 for the scaling (A.1), gives Model B's density. With
+and dividing by 50 for the scaling (A.1), gives the model's density. With
 $u_i = x_i / 50$, show that the log-likelihood is
 $$\ell(a) = -n \log 50 - n \log \mathrm{B}(a,a)
  + (a - 1) \sum_{i=1}^n \left[\log u_i + \log(1 - u_i)\right],$$
@@ -216,150 +213,83 @@ $n = 56$. Two estimators:
   exact CDF form from A.1: `pbeta(20/50, atilde, atilde)`.
 
 Simulate the sampling distribution of each: 1,000 replications of samples
-of size 56 from Model B ($a = 4$). Using the exact $F(20)$ from A.1,
+of size 56 from the model ($a = 4$). Using the exact $F(20)$ from A.1,
 estimate the **bias** and **MSE** of each, with a 99\% confidence interval,
-and show a side-by-side boxplot. Which do you prefer at $n = 56$?
+and show a side-by-side boxplot.
 
 ### C.4
 
 Repeat the comparison at $n = 14$ and $n = 224$. Present bias, variance,
-and MSE for both estimators at all three sample sizes in one table. Does
-the preferred estimator change with $n$?
+and MSE for both estimators at all three sample sizes in one table.
 
 ### C.5
 
-The $t$ confidence interval is exact only for Normal data, and Model B is
+The $t$ confidence interval is exact only for Normal data, and the model is
 not Normal. Estimate its true coverage: simulate 10,000 samples of size 56
-from Model B, compute the nominal 95\% `t.test` interval for $\E{X}$ in
+from the model, compute the nominal 95\% `t.test` interval for $\E{X}$ in
 each, and report the proportion covering the true value (from A.3), with a
 99\% confidence interval for that proportion (`binom.test`).
 
 Then check your A.5 answer by direct sampling: estimate $P(X_1 + X_2 > 70)$
 as the mean of indicators over 100,000 `rmod` pairs, with a 99\%
-`binom.test` interval. Do the two approaches agree?
+`binom.test` interval.
 
 # Part D: Monte Carlo for testing
 
 Part C estimated $a$. Now we **test** it. Throughout, $H_0$ says the perch
 follow our working model,
 $$H_0: \; X = 50B, \quad B \sim \text{Beta}(4, 4),$$
-and $n = 56$ as before.
+with $n = 56$, and the alternatives are other values of $a$.
 
-Two statistics, aimed at rather different things:
+Two statistics:
 
-- **Moment statistic** $T_S = S^2$, the sample variance. Under Model B the
-  variance is $625/(2a+1)$ from C.1, so $T_S$ is a direct read on $a$ and on
-  nothing else.
+- **Moment statistic** $T_S = S^2$, the sample variance. Under the model the
+  variance is $625/(2a + 1)$ from C.1, so $T_S$ is a direct read on $a$.
 - **Distance statistic** $T_K$, the largest gap between the model CDF and
-  the empirical CDF --- `ks.test(x/50, "pbeta", 4, 4)$statistic`. It looks at
-  the whole distribution and is aimed at nothing in particular.
+  the empirical CDF --- `ks.test(x/50, "pbeta", 4, 4)$statistic`. It looks
+  at the whole distribution rather than at $a$ in particular.
 
 Neither has a usable table here, which is why we simulate.
 
 ### D.1
 
 Simulate the null distribution of each statistic: 10,000 samples of size 56
-from Model B with $a = 4$.
+from the model with $a = 4$.
 
 $T_S$ can be wrong in either direction, so use a **two-sided** region,
-rejecting when $T_S$ is below the 2.5\% quantile or above the 97.5\%
-quantile. $T_K$ is a distance, so large values are the only evidence against
-$H_0$: reject above its 95\% quantile. Report all three cutoffs.
+rejecting when $T_S$ falls below the 2.5\% quantile or above the 97.5\%
+quantile. $T_K$ is a distance, so reject only above its 95\% quantile.
+Report all three cutoffs.
 
 ### D.2
 
-Check your regions: with **fresh** simulations under $H_0$ (10,000 new
-replications), estimate the empirical Type I error rate of each region, with
-a `binom.test` confidence interval. Are both near 0.05? Explain in one
-sentence why the simulations from D.1 could not have told you this.
+With **fresh** simulations under $H_0$ (10,000 new replications), estimate
+the empirical Type I error rate of each region, each with a `binom.test`
+confidence interval.
 
 ### D.3
 
-Now compare the two tests, at the same size, against **two** different ways
-of being wrong.
+Power curves. For each $a \in \{2, 2.5, 3, 3.5, \ldots, 8\}$, simulate
+1,500 samples of size 56 from $50 \cdot \text{Beta}(a, a)$ and estimate the
+power of both tests, using the cutoffs from D.1.
 
-The first changes the **spread** and nothing else: $a = 6$, still symmetric.
-
-The second changes the **shape** while holding the spread fixed at the
-Model B value. Use the mode/concentration parameterization: a Beta with mode
-$m$ (as a fraction of $\theta$) and concentration $c = \alpha + \beta$ has
-$$\alpha = 1 + m(c - 2), \qquad \beta = 1 + (1 - m)(c - 2),$$
-and this helper picks $c$ so the standard deviation comes out to `s`:
-
-```{r}
-beta_from_mode <- function(theta, m, s) {
-  g <- function(cc) {
-    a <- 1 + m * (cc - 2); b <- 1 + (1 - m) * (cc - 2)
-    theta * sqrt(a * b / ((a + b)^2 * (a + b + 1))) - s
-  }
-  cc <- uniroot(g, c(2.001, 500))$root
-  c(alpha = 1 + m * (cc - 2), beta = 1 + (1 - m) * (cc - 2))
-}
-```
-
-Call it with `theta = 50`, `m = 0.28`, and `s` set to Model B's own standard
-deviation, so this alternative has **exactly the right variance** and only
-the shape is wrong.
-
-Estimate the power of both tests against both alternatives (2,000
-replications each) and put the four numbers in one table.
+Plot the two power curves on one set of axes, with horizontal reference
+lines at $0.05$ and $0.80$.
 
 ### D.4
 
-The table should not be a clean sweep --- one test wins one row and loses
-the other, by a wide margin both times.
+**(a)** Test $H_0: a = 4$ on the 56 perch lengths using $T_S$. Report the
+observed $S^2$, its $p$-value in the $(1 + \#)/(B + 1)$ form, and whether
+the test rejects at the $0.05$ level.
 
-Explain it. Why is $T_S$ nearly powerless against the second alternative,
-and what is its power there close to? Why does $T_K$ do comparatively badly
-on the first? State the general lesson in one sentence, in the form "a test
-aimed at ... ".
+**(b)** Invert that test to get a confidence interval for $a$. For each
+candidate $a_0$ on a grid from $1.5$ to $8$ in steps of $0.1$:
 
-Then apply both tests to the 56 perch: report a $p$-value for $H_0$ from
-each, using the $(1 + \#)/(B+1)$ form. Do they agree about Model B?
+- simulate the null distribution of $T_S$ under
+  $50 \cdot \text{Beta}(a_0, a_0)$, 2,000 replications;
+- keep $a_0$ if the observed $S^2$ falls between the $2.5\%$ and $97.5\%$
+  quantiles of that distribution.
 
-Finally, say which of the two you would want in D.5, where the question is
-not "is $a$ equal to 4" but "is this model acceptable at all".
-
-### D.5
-
-**Back to Model B: is it any good?** Throughout Parts A--C we fixed
-$\theta = 50$ and assumed symmetry. Now let both go, and build a
-**confidence region** for them by inverting a test.
-
-Reuse the $(\theta, m)$ parameterization from D.3 and the `beta_from_mode`
-helper, now calling it with `s = sd(perch$length1)` so that every candidate
-model is at least the right width. That leaves $\theta$ and $m$ as the two
-things actually being tested, and a grid over them is a two-dimensional
-search.
-
-Use $T_K$ as the statistic, for the reason you gave at the end of D.4.
-
-**(a)** Write a function that, for a given $(\theta, m)$, gets
-$(\alpha,\beta)$ from `beta_from_mode`, computes the observed statistic on
-`perch$length1 / theta`, simulates its null distribution with `rbeta`, and
-returns the $(1 + \#)/(B + 1)$ $p$-value. Use $B = 200$. Reject
-$(\theta, m)$ when that $p$-value is at or below 0.05.
-
-**(b)** Any $\theta$ below `max(perch$length1)` is impossible --- say why in
-one sentence, and exclude it.
-
-**(c)** Run the test over a grid of $\theta$ from 42 to 64 and $m$ from 0.25
-to 0.75. Plot the accepted set. Keep the grid coarse enough to finish in
-under a minute, then refine it if you like. If the accepted set runs off the
-edge of your grid, say so --- that is a result, not a bug.
-
-**(d)** Report the range of $\theta$ in your region, the range of $m$, and
-the range of the **mode in centimetres**, $\theta \times m$. Which of the
-three does the data determine most sharply? For any that it does **not**
-determine, say what that means in terms of perch: what question are these
-56 fish simply unable to answer?
-
-**(e)** Is the grid point $(\theta, m) = (50, 0.5)$ inside your region?
-
-First print `beta_from_mode(50, 0.5, sd(perch$length1))` and set it beside
-$\tilde a$ from C.1. They agree **exactly**. Show algebraically why, in one
-line --- at $m = 0.5$ the helper is solving the same equation C.1 did.
-
-So this grid point is not the $\text{Beta}(4,4)$ of Parts A--C; it is the
-symmetric Beta that matches the observed spread. Say what its being inside
-the region does, and does not, entitle you to conclude about Model B.
+The kept values form a 95\% confidence interval for $a$. Report its
+endpoints, and plot the grid against the $p$-value with $\tilde a$ from C.1
+and the working value $a = 4$ marked.
