@@ -1,0 +1,247 @@
+---
+title: "Module 1 Project: How Long Is a Perch?"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(288942)
+library(tidyverse)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+# The setting
+
+The University of Helsinki recorded 159 fish caught in lake Laengelmavesi,
+including 56 perch. We will model the **length of a perch** (the `length1`
+measurement, in cm).
+
+```{r}
+fish <- read.csv("../../data/fish.csv")
+perch <- filter(fish, species == 7)
+ggplot(perch, aes(x = length1)) + geom_histogram(bins = 10)
+```
+
+Two candidate models for perch length, both supported on $[0, \theta]$ with
+$\theta = 50$:
+
+**Model U** (crude): $X \sim U(0, \theta)$.
+
+**Model B** (better): a **scaled Beta**: $X = 50 B$ with
+$B \sim \text{Beta}(5, 2)$, so the density is
+$$f(x) = \frac{1}{50} \, f_B(x / 50), \quad 0 \le x \le 50,$$
+where $f_B$ is the Beta(5, 2) density. This puts the peak at 40 cm:
+
+```{r}
+fmod <- function(x) { dbeta(x / 50, 5, 2) / 50 }
+curve(fmod(x), from = -1, to = 55)
+```
+
+Parts A and B use only the multiply-and-divide recipe from the video: for
+any density $g$ positive on the region,
+$$\int_a^b h(x) \, dx = \E{\frac{h(Y)}{g(Y)}}, \quad Y \sim g.$$
+Part C starts sampling from Model B directly.
+
+You will build one analysis of these models across the module, adding a part
+after each video. **The module exam asks questions about what you did and
+found here** --- as you work, make sure you could explain each choice and
+each result, because the exam will ask you to.
+
+Submit one knitted document with all code visible.
+
+# Part A: Monte Carlo integration (after video 1) (10 pts)
+
+### A.1 (3 pts)
+
+Let $B$ be any random variable with CDF $F_B$ and density $f_B$, and let
+$X = 50 B$. **Prove** that
+$$F_X(x) = F_B(x / 50) \qquad \text{and} \qquad
+f_X(x) = \frac{1}{50} f_B(x / 50).$$
+(Start from $F_X(x) = P(50 B \le x)$; get the density from the CDF.)
+
+Then **compute** the exact $F(30) = P(X \le 30)$ for Model B using `pbeta`.
+We will treat this as the exact value for the rest of the project.
+
+### A.2 (2 pts)
+
+Now estimate the same quantity by Monte Carlo, pretending A.1 were not
+available:
+$$F(30) = \int_0^{30} f(x) \, dx = \E{30 f(V)}, \quad V \sim U(0, 30).$$
+
+Use 10,000 uniform draws. Report the estimate and a 95\% confidence
+interval from `t.test`. Does the interval cover the exact value?
+
+### A.3 (2 pts)
+
+Estimate the model's mean perch length,
+$$\E{X} = \int_0^{50} x f(x) \, dx,$$
+with a $U(0, 50)$ envelope and 10,000 draws. Report a 95\% confidence
+interval and check against numerical integration:
+
+```{r}
+integrate(function(x) x * fmod(x), 0, 50)
+```
+
+### A.4 (1 pt)
+
+Compare model to data: report the exact model probability $F(30)$ from A.1
+next to the observed fraction of the 56 perch with `length1` $\le 30$.
+Keep this comparison in mind --- we return to it in Part D.
+
+### A.5 (2 pts)
+
+A joint quantity: two perch are caught independently, both following Model
+B. Estimate the probability their **combined** length exceeds 90 cm,
+$$P(X_1 + X_2 > 90)
+= \int_0^{50}\!\!\int_0^{50} \ind(x_1 + x_2 > 90)\, f(x_1) f(x_2)
+\, dx_1 \, dx_2,$$
+using independent pairs $V_1, V_2 \sim U(0, 50)$ and the
+multiply-and-divide recipe (careful: the joint envelope density is
+$1/50^2$). Use 100,000 pairs and report a 95\% confidence interval. You
+will check this answer in Part C.
+
+# Part B: variance reduction (after video 2) (10 pts)
+
+### B.1 (3 pts)
+
+Antithetic variables for the A.2 estimator. On $[0, 30]$ the density $f$ is
+strictly increasing (show this with a plot or a one-line argument --- where
+is the mode?), so $h(v) = 30 f(v)$ is monotone and the pairs $(V, 30 - V)$
+are negatively correlated.
+
+Re-estimate $F(30)$ using 5,000 uniform draws $V_i$ paired with their
+antithetic partners $30 - V_i$ (10,000 function evaluations total, same as
+A.2). Report the estimate, the estimated variance of this estimator and of
+the A.2 estimator, and the percent variance reduction.
+
+### B.2 (5 pts)
+
+Importance sampling for $\E{X}$. The $U(0, 50)$ envelope in A.3 ignores
+where $x f(x)$ puts its mass. Consider envelopes of the form $Y = 50 B'$
+with $B' \sim \text{Beta}(\alpha, \beta)$, which by A.1 has density
+$g(y) = \frac{1}{50}\,\texttt{dbeta}(y/50, \alpha, \beta)$ on $[0, 50]$
+--- the uniform is the special case $\alpha = \beta = 1$.
+
+Propose **two** candidate $(\alpha, \beta)$ pairs with small integer
+values. Useful facts: a Beta($\alpha, \beta$) with $\alpha, \beta > 1$ has
+its mode at $(\alpha - 1)/(\alpha + \beta - 2)$, and plotting candidates
+against the target is the way to choose:
+
+```{r eval = FALSE}
+curve(x * fmod(x), from = 0, to = 50)
+curve(K * dbeta(x / 50, alpha, beta) / 50, add = TRUE, col = "red")
+## pick K so the two curves have comparable height
+```
+
+For each candidate (10,000 draws each), estimate $\E{X}$ and the variance
+of the estimator, and compare with the uniform envelope of A.3.
+
+One choice of small integers $(\alpha, \beta)$ turns out to be **perfect**:
+every weighted value $y \, f(y) / g(y)$ is the same number. Find it (the
+mode-matching hint leads straight there), and verify by printing the
+`range()` of your weighted values. Compare session exercise 3(e).
+
+### B.3 (2 pts)
+
+Using the estimated variance of your best **non-perfect** envelope from
+B.2, compute the number of draws needed for a 95\% confidence interval for
+$\E{X}$ with width at most $0.1$ cm. Then run it once with that $n$ and
+report the realized interval and its width.
+
+# Part C: Monte Carlo for estimation (after video 3) (10 pts)
+
+Sampling from Model B is one line --- scale draws from `rbeta`:
+
+```{r}
+rmod <- function(n) { 50 * rbeta(n, 5, 2) }
+```
+
+Now pretend we do *not* know $F(30)$ and must estimate it from a sample of
+$n = 56$ perch, the size of our real sample. Two estimators:
+
+- **ECDF**: $\hat F(30) = \frac{1}{56} \sum_i \ind(X_i \le 30)$
+- **Plug-in**: fit the Beta parameters by the **method of moments** and use
+  the exact CDF form from A.1. With $\hat m = \bar X / 50$ and
+  $\hat v = S^2 / 50^2$,
+  $$\hat k = \frac{\hat m (1 - \hat m)}{\hat v} - 1, \qquad
+  \hat\alpha = \hat m \hat k, \qquad \hat\beta = (1 - \hat m) \hat k,$$
+  and the estimator is `pbeta(30/50, alphahat, betahat)`.
+
+### C.1 (2 pts)
+
+Simulate the sampling distribution of the ECDF estimator: 1,000 replications
+of samples of size 56 from Model B. Using the exact $F(30)$ from A.1,
+estimate the **bias** and **MSE**, each with a 99\% confidence interval.
+
+### C.2 (3 pts)
+
+Repeat C.1 for the plug-in estimator. Compare the two on bias and MSE, with
+a side-by-side boxplot of the two sampling distributions. Which do you
+prefer at $n = 56$?
+
+### C.3 (2 pts)
+
+Repeat the comparison at $n = 14$ and $n = 224$. Present bias, variance,
+and MSE for both estimators at all three sample sizes in one table. Does
+the preferred estimator change with $n$?
+
+### C.4 (2 pts)
+
+The $t$ confidence interval is exact only for Normal data, and Model B is
+not Normal. Estimate its true coverage: simulate 10,000 samples of size 56
+from Model B, compute the nominal 95\% `t.test` interval for $\E{X}$ in
+each, and report the proportion covering the true value (from A.3), with a
+99\% confidence interval for that proportion (`binom.test`).
+
+### C.5 (1 pt)
+
+Check your A.5 answer with direct sampling: estimate $P(X_1 + X_2 > 90)$ as
+the mean of indicators over 100,000 `rmod` pairs, with a 99\% `binom.test`
+interval. Do the two approaches agree?
+
+# Part D: Monte Carlo for testing (after video 4) (10 pts)
+
+Under Model U, two estimators of $\theta$ from earlier in the course double
+as test statistics:
+
+- Method of moments: $\tilde\theta = 2 \bar X$
+- Maximum likelihood: $\hat\theta = \max_i X_i$
+
+We test $H_0: \theta = 50$ against $H_1: \theta = 51$ with $n = 56$.
+
+### D.1 (3 pts)
+
+Simulate the null ($\theta = 50$) and alternative ($\theta = 51$)
+distributions of both statistics, 10,000 replications each. For each
+statistic, find a rejection region of the form $T > c$ with
+$P(T > c \mid H_0) \le 0.05$, and estimate its power against $\theta = 51$.
+
+### D.2 (2 pts)
+
+Check your regions: with **fresh** simulations under $H_0$ (10,000 new
+replications), estimate the empirical Type I error rate of each rejection
+region, with a confidence interval. Are both at or below 0.05?
+
+### D.3 (3 pts)
+
+Power curves: estimate the power of both tests for each
+$\theta \in \{51, 52, \ldots, 80\}$ (1,000 replications per $\theta$ is
+enough). Add a **third** competitor: under Model U, $\E{X} = \theta/2$, so
+testing $\theta = 50$ is testing $\mu_X = 25$ --- use
+`t.test(x, mu = 25, alternative = "greater")` and reject when its p-value
+is below 0.05. Plot all three curves on one set of axes and report how
+large $\theta$ must be for each test to reach 80\% power.
+
+### D.4 (2 pts)
+
+Back to the data: carry out the test from D.1 (your preferred statistic) on
+the 56 perch lengths and report the outcome. Then estimate $P(X \le 30)$
+for the perch using the estimator you preferred in C.2, and set it beside
+the A.4 comparison. State your conclusions about the two models in plain
+language.
