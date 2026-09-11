@@ -1,0 +1,514 @@
+---
+title: "Statistical Review"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 0"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%",
+                      fig.width = 6, fig.height = 2.4)
+options(width = 60, digits = 4)
+set.seed(49482)
+library(tidyverse)
+```
+
+# Probability and Random Variables
+
+## Probability
+
+For an experiment that generates an **outcome**, the set of all possible results is called the **sample space $\Omega$**.
+
+We say that **event $A \subset \Omega$** has **probability $p$** if after **infinite repeated sampling** we observe that $A$ occurs $100 \times p\%$ of the time.
+
+Our notation is:
+$$P(A) = p$$
+
+Some example events:
+
+- A coin coming up heads.
+- Picking a blue ball and then a red ball from a box.
+- The value of a stock exceeding \$100.
+- Going bust or making over \$100 at the roulette table after 1 play.
+
+## Multiple Events
+
+We often consider **multiple events**: $A \subset \Omega$ and $B \subset \Omega$. We notate the **joint probability that both $A$ and $B$ occur** as
+$$P(A \text{ and } B) \equiv P(A \cap B) \equiv P(A, B)$$
+
+Two events are **disjoint** if $P(A, B) = 0$.
+
+If we know $B$ has occurred, the **conditional probability of $A$** is
+$$P(A \, | \, B) = \frac{P(A, B)}{P(B)} \Rightarrow P(A, B) = P(A \, | \, B) P(B)$$
+
+Two events are **independent** if (and only if) $P(A, B) = P(A) P(B)$, which implies conditioning is immaterial:
+$$P(A \, | \, B) = \frac{P(A) P(B)}{P(B)} = P(A)$$
+
+## Random Variables
+
+When outcomes can take values **on the real line $\mathbb{R}$**, we call them **random variables**.
+
+We often limit random variables to a subset of $\mathbb{R}$, which we call the support or domain: $\mathcal{D}$.
+$$P(X \in \mathcal{D}) = 1 \iff P(X \not \in \mathcal{D}) = 0$$
+
+If $X$ can take any real value in $\mathcal{D}$, we say it is **continuous**.
+
+If $X$ can only take a **countable** number of values (e.g., integers), it is **discrete**.
+
+Notation: uppercase $X$ is the random variable, lower case $x$ is a fixed value.
+
+## Distribution Functions
+
+The **(cumulative) distribution function** (CDF) of a random variable is:
+$$F(x) = P(X \le x), \quad x \in \mathbb{R}$$
+
+Useful properties:
+
+- If $\mathcal{D} = [a, b]$, $x < a \Rightarrow F(x) = 0$ and $x \ge b \Rightarrow F(x) = 1$
+- More generally, $\lim_{x \rightarrow -\infty} F(x) = 0$ and $\lim_{x \rightarrow \infty} F(x) = 1$.
+- $F$ is **non-decreasing**: $F(x_1) \le F(x_2)$ for $x_1 < x_2$.
+- $F$ is **right continuous**: $\lim_{\epsilon \rightarrow 0^{+}} F(x + \epsilon) = F(x)$.
+
+## Continuous Distributions
+
+If $X$ is **continuous**, then $F$ is a **continuous function**. If $F$ is also **differentiable**, the **probability density function** (PDF) is:
+$$f = \frac{d}{dx} F$$
+
+A consequence is that if we have a region $\mathcal{R} \subset \mathcal{D}$,
+$$P(X \in \mathcal{R}) = \int_{\mathcal{R}} f(x) \, dx$$
+
+For example:
+$$P(X \le t) = \int_{-\infty}^t f(x) \, dx = F(t)$$
+
+Note: we often suppress the fact that $f(x) = 0$ for $x \not \in \mathcal{D}$
+
+## Example: $f(x) = 2(1 - x)$
+
+For a random variable $X$ defined on support $0 \le x \le 1$, suppose the density is:
+$$f(x) = 2(1 - x)$$
+
+$$F(t) = \int_0^t 2 - 2x \, dx = t(2 - t)$$
+
+$$P(X \le 0.5) = \frac{3}{4}$$
+
+## Example: Normal Distribution
+
+The **Normal distribution** ("Normal" is the name, not a descriptor) has PDF:
+$$f(x) = \frac{1}{\sqrt{2\pi\sigma^2}} \exp\left\{\frac{- (x - \mu)^2}{2\sigma^2} \right\}$$
+with **parameters** $\mu$ and $\sigma^2$.
+
+We use the following notation to indicate that $X$ is a Normal variable:
+$$X \sim N(\mu, \sigma^2)$$
+
+There is no closed form for $F$, so we need to use look up tables that have been pre-computed using numerical procedures.
+
+## $N(0,1)$
+
+```{r normal-cdf, echo = FALSE, fig.height = 3}
+par(mar = c(4, 4, 2, 2))
+curve(pnorm(x), from = -2, to = 2, ylab = "F(x)")
+```
+
+## Discrete Distributions
+
+If $X$ is discrete (i.e., takes only values that can be mapped to the integers), then $F$ is a **step function**.
+
+Define the **probability mass function** (PMF) for $X$, as
+$$f(x) = P(X = x)$$
+
+As with the continuous case, we can build the CDF from the PMF:
+$$F(x) = \sum_{i = -\infty}^x P(X = i)$$
+
+## Bernoulli and Binomial Distributions
+
+If $X$ has **Bernoulli** distribution, it can take one value with probability $\theta$ and another value with probability $1 - \theta$. Usually:
+$$P(X = 1) = \theta, \quad P(X = 0) = 1 - \theta$$
+
+We write:
+$$X \sim \text{Bernoulli}(\theta)$$
+
+The **sum of $n$ independent** Bernoulli variables has **Binomial** distribution:
+$$X_i \iid \text{Bernoulli}(\theta), \; Y = \sum_{i = 1}^n X_i \Rightarrow Y \sim \text{Binomial}(n, \theta)$$
+
+$$P(Y = y) = \binom{n}{y} \theta^y (1 - \theta)^{n - y}$$
+
+## Binomial(10, 0.3)
+
+```{r binomial-cdf, echo = FALSE, fig.height = 3}
+par(mar = c(4, 4, 2, 2))
+plot(stepfun(x = 0:10, c(0, pbinom(0:10, size = 10, p = 0.3))),
+     ylab = "F(x)", main = NA)
+```
+
+## Joint Distributions
+
+Random variables $X$ and $Y$ have a **joint CDF** described by:
+$$F(x, y) = P(X \le x \text{ and } Y \le y)$$
+
+We write the **joint density or mass function** as $f(x, y)$.
+
+Generally, the same properties hold for joint distributions as for univariate distributions. E.g.,
+
+$$\int_{-\infty}^\infty \int_{-\infty}^\infty f(x, y) \, dx \, dy = 1$$
+
+## Marginal Distributions and Independence
+
+We can **integrate out** one variable to get the **marginal distribution of the other**:
+$$f(x) = \int_{-\infty}^\infty f(x, y) \, dy, \quad f(y) = \int_{-\infty}^\infty f(x, y) \, dx$$
+
+E.g., for $f(x, y) = \frac{21}{4} x^2 y$ on the region $x^2 \le y \le 1$,
+$$f(x) = \frac{21}{8}\left(x^2 - x^6\right), \quad -1 \le x \le 1$$
+
+Just as with events, $X$ and $Y$ are **independent** if and only if the joint density (mass) function **factors**:
+$$f(x, y) = f(x) f(y)$$
+
+Factorization is both **necessary and sufficient**. The same holds for CDFs: $F_{xy}(a, b) = F_x(a) F_y(b)$.
+
+## Conditional Distributions
+
+We will use the notation $X \mid Y = u$ to indicate the random variable **$X$ conditioned on the event that $Y = u$**.
+
+Suppose that $A$ is some event about $X$ and $B$ is the event $Y \in [u - \epsilon, u + \epsilon]$. Then,
+$$P(A \mid B) = \frac{P(A \text{ and } B)}{P(B)} = \frac{\int_A \int_{u - \epsilon}^{u + \epsilon} f_{xy}(x, y) \, dy \, dx}{\int_{u - \epsilon}^{u + \epsilon} f_y(y) \, dy}$$
+
+Taking the limit as $\epsilon \rightarrow 0$, we get the **conditional density (or mass) function for $X \mid Y = u$**:
+$$f(x \mid y = u) = \frac{f_{xy}(x, u)}{f_y(u)}$$
+
+If $X$ and $Y$ are **independent**, this reduces to $f(x \mid y) = f(x)$: conditioning on $Y$ tells us nothing about $X$.
+
+## Example: Conditional Distribution
+
+Suppose
+$$f(x, y) = \theta^2 (xy)^{\theta - 1}, \quad 0 \le x \le 1, 0 \le y \le 1, \theta \ge 0$$
+
+$$f(x) = \theta x^{\theta - 1} \int_0^1 \theta  y^{\theta - 1} \, dy = \theta x^{\theta - 1} \left( y^\theta \big|_0^1 \right) = \theta x^{\theta - 1}$$
+
+$$f(y \mid x) = \frac{f(x,y)}{f(x)} = \theta y^{\theta - 1}$$
+
+## Expectation
+
+Suppose we are going to compute $g(X)$ for a random variable $X$.
+
+We often want to "average over" $X$ to get a sense of a typical value for $g(X)$. We define the **expectation** of $g(X)$ as:
+\[
+\begin{aligned}
+E(g(X)) &= \sum_{x = -\infty}^\infty P(X = x) g(x) & \text{(discrete)}\\
+E(g(X)) &= \int_{-\infty}^\infty g(x) f(x) \, dx & \text{(continuous)}
+\end{aligned}
+\]
+
+We call the **expectation of the identity function**, $E(X)$, the **mean of $X$**.
+
+We call $E\left[(X - E(X))^2\right]$ the **variance**.
+
+## Example: Expectations for Binomial(10, 0.3)
+
+Recall that $P(Y = y) = \binom{10}{y} (0.3)^y (0.7)^{10 - y}$ on the integers zero to ten, so
+$$E(Y) = \sum_{i = 0}^{10} \binom{10}{i} (0.3)^i (0.7)^{10 - i} \times i$$
+
+Nothing changes for a **different $g$**, e.g. $g(y) = \log(y + 1)$: swap $i$ for $\log(i + 1)$.
+
+```{r binomial-expectations}
+pmf <- function(i) choose(10, i) * 0.3^i * 0.7^(10 - i)
+sum(map_dbl(0:10, function(i) pmf(i) * i))
+sum(map_dbl(0:10, function(i) pmf(i) * log(i + 1)))
+```
+
+## Example: Expectation for a Continuous RV
+
+Suppose we have
+$$f(x) = \theta x^{\theta - 1}, \quad 0 \le x \le 1, \theta > 0$$
+and we want to find **the variance of $X$**, $\E{X^2} - \E{X}^2$.
+
+$$\E{X} = \int_0^1 x f(x) \, dx = \int_0^1 \theta x^\theta \, dx = \frac{\theta}{\theta + 1}$$
+
+$$\E{X^2} = \int_0^1 \theta x^{\theta + 1} \, dx = \frac{\theta}{\theta + 2}$$
+
+$$\Var{X} = \frac{\theta}{\theta + 2} - \frac{\theta^2}{(\theta + 1)^2}$$
+
+## Conditional Expectation
+
+Recall that $X \mid Y = y$ is a random variable, so we can consider **the conditional expectation of $X$ given $Y = y$**:
+$$\E{X \mid Y = y} = \int_{-\infty}^\infty x \, f(x \mid y) \, dx$$
+
+The result will be a function of $y$, i.e., $h(y) = \int_{-\infty}^\infty x \, f(x \mid y) \, dx$. This leads to the useful result of the **law of iterated expectation**:
+$$\E{h(Y)} = \E{\E{X \mid Y}} = \E{X}$$
+
+## Properties of Expectations
+
+Some useful facts (which also apply to $g(X)$, $h(Y)$, etc):
+
+- $E(aX + b) = aE(X) + b$
+- $E(X + Y) = E(X) + E(Y)$
+- If $X$ and $Y$ are **independent**, then $E(XY) = E(X) E(Y)$ (**the converse is not true!**)
+- $\text{Var}(a X + b) = a^2 \text{Var}(X)$
+- $\text{Var}(X + Y) = \text{Var}(X) + \text{Var}(Y) + 2 \text{Cov}(X, Y)$ where
+  $$\text{Cov}(X, Y) = E\left[(X - E(X))(Y - E(Y))\right] = E(XY) - E(X)E(Y)$$
+- If $X$ and $Y$ are independent, then $\text{Cov}(X, Y) = 0$
+
+## Sums of Random Variables
+
+Expectation is **linear** --- no independence required:
+$$E\left(\sum_{i=1}^n a_i X_i \right) = \sum_{i=1}^n a_i E(X_i)$$
+
+Variance is **not** linear, but if the $X_i$ are **independent** every covariance term drops out:
+$$\Var{\sum_{i=1}^n a_i X_i} = \sum_{i=1}^n a_i^2 \Var{X_i}$$
+
+The case we will use constantly: $X_1, \ldots, X_n$ IID with mean $\mu$ and variance $\sigma^2$,
+$$E(\bar X_n) = \mu, \quad \Var{\bar X_n} = \frac{\sigma^2}{n}$$
+
+The sample mean is **unbiased**, and its variance shrinks like $1/n$.
+
+## Analytic solution for Binomial mean
+
+Recall we can think of $Y \sim \text{Binomial}(n, \theta)$:
+$$Y = \sum_{i=1}^n X_i, \quad X_1, X_2, \ldots X_n \iid \text{Bernoulli}(\theta)$$
+
+Then
+$$E(Y) = E\left(\sum_{i=1}^n X_i\right) = \sum_{i=1}^n E(X_i)$$
+
+Since $E(X_1) = E(X_2) = \ldots = E(X_n)$, further:
+$$E(Y) = n E(X_1)$$
+
+Finally,
+$$E(X_1) = \theta \times 1 + (1 - \theta) \times 0 = \theta \Rightarrow E(Y) = n \theta$$
+
+## Summary: Random Variables
+
+- **Random variables** are random outcomes described by **real numbers**
+- All RVs have a **(cumulative) distribution function**: $F(x) = P(X \le x)$
+- **Continuous** RVs: (a) probability density functions $f(x)$, (b) **expectation** is $E(g(X)) = \int_{-\infty}^\infty g(x) f(x) \, dx$.
+- **Discrete** RVs: (a) probability mass functions $p(x)$, (b) expectation is $E(g(X)) = \sum_{x \in \mathcal{D}} p(x) g(x)$
+- **Independence**: the joint distribution is the product of the marginal distributions.
+
+# Inference
+
+## What is inference?
+
+In the previous examples we **posited a model** (i.e., assumed a distribution) for data.
+
+Typically, we leave some parts of the model **unknown**. We call these unknown components **parameters**.
+
+After we **encounter data**, we want to make **reasonable guesses** (i.e., estimates) or **validate possible values** (i.e., test hypotheses) for the parameters.
+
+We call this process **inference**. We want tools that **behave well** when performing inference (i.e., operating characteristics).
+
+## Statistics
+
+A **statistic** is a function of **random variables**.
+
+Example: the **sample mean**:
+$$T(X_1, X_2, \ldots, X_n) = \frac{1}{n}\sum_{i = 1}^n X_i = \bar X_n$$
+
+We use statistics to
+
+- **Reduce the size** of our data. If we can do so without losing information we call them **sufficient**.
+- **Estimate** parameters of a population from a sample.
+- **Test** statistical hypotheses about how our data were generated.
+
+Important: statistics are **random variables** too!
+
+## Estimation
+
+If $X_1, X_2, \ldots X_n$ are from the **same distribution**, we say that they are **identical**. Often, we also assume **independence** (IID):
+$$X_1, X_2, \ldots, X_n \iid F(\theta)$$
+where $\theta$ can be a **vector of many parameters**.
+
+An easy way to get IID is to sample from a **large, well defined** population uniformly at random (**simple random sample**).
+
+We often wish to estimate $\theta$ for the population using an **estimator** (a statistic):
+$$\hat \theta(X_1, X_2, \ldots, X_n) = \text{do something with the } X_i \text{ values}$$
+
+## Sampling Distributions
+
+Since $\hat \theta$ is a **random variable** it has a distribution. We call it the **sampling distribution**.
+
+Example: if $X_i \iid N(\mu, \sigma^2)$, then $\bar X_n \sim N(\mu, \sigma^2 / n)$
+
+Generally, we want to know some **properties of an estimator**:
+
+- **Bias**: $E(\hat \theta - \theta) = E(\hat \theta) - \theta$
+- **Variance**: $\text{Var}(\hat \theta)$
+- **Mean Squared Error (MSE)**:
+  $$E\left[(\hat \theta - \theta)^2\right] = \text{Bias}^2 + \text{Var}(\hat \theta)$$
+
+## Example: Sample Mean of $X_i \iid N(\mu, \sigma^2)$
+
+We will use without proof the fact that $X_i \iid N(\mu, \sigma^2) \Rightarrow \bar X_n \sim N(\mu, \sigma^2/n)$.
+
+With respect to $\mu$, what is the bias and variance of the estimator
+
+- $\hat \mu = X_1$: $\E{X_1} - \mu = \mu - \mu = 0$, $\Var{X_1} = \sigma^2$
+- $\hat \mu = \bar X_n$: $\E{\bar X_n} - \mu = \mu - \mu = 0$, $\Var{\bar X_n} = \sigma^2 / n$.
+
+Conclusion: the **MSE of a single observation is $n$ times larger than the MSE of $\bar X$**.
+
+## Method of Moments Estimation
+
+We call expectations of the form $E(X^r)$ the **moments of $X$**. E.g., the mean is the first moment.
+
+Sometimes we can write $\theta = g(\E{X^1}, \E{X^2}, \ldots, \E{X^r})$ for some $r$ and some $g$.
+
+We can estimate $E(X^r)$ using the **sample moments**:
+$$m_r = \frac{1}{n}\sum_{i=1}^n X_i^r$$
+and solve $\hat \theta = g(m_1, m_2, \ldots, m_r)$ for $\hat \theta$ (perhaps using a system of equations).
+
+## Method of Moments Example: $f(x) = \theta x^{\theta - 1}$
+
+For $f(x) = \theta x^{\theta - 1}$, we previously computed
+$$\E{X} = \frac{\theta}{\theta + 1}$$
+
+Substituting $\bar X$ for $\E{X}$, and solving for $\theta$ we get:
+$$\bar X = \frac{\hat \theta}{\hat \theta + 1} \Rightarrow \hat \theta = \frac{\bar X}{1 - \bar X}$$
+
+## Likelihood Functions
+
+A sample has **joint density/mass function**:
+$$f(x_1, x_2, \ldots, x_n ; \theta)$$
+
+Instead of thinking about the **$x_i$ values as arguments**, we can think about $\theta$ as the argument to get the **likelihood function**:
+$$L(\theta ; x_1, x_2, \ldots, x_n) = f(x_1, x_2, \ldots, x_n ; \theta)$$
+
+Note: When **$X_i$ are IID**,
+$$L(\theta; x_1, x_2, \ldots, x_n) = \prod f(x_i ; \theta)$$
+
+## Maximum Likelihood Estimation
+
+With a likelihood function $L(\theta)$, we can ask, "What $\theta$ would seem to make my data most plausible?"
+
+This implies that we should find the **maximum likelihood estimator**:
+$$\hat \theta = \text{argmax}_{\theta \in \Theta} \, L(\theta ; x_1, x_2, \ldots, x_n)$$
+
+We can often achieve this goal by maximizing a **monotonic transformation**, such as the $\log$ function. This helps because $\log$ turns the product over IID observations into a sum:
+$$\log(a b) = \log(a) + \log(b)$$
+
+In this course $\log$ always means the **natural logarithm**, $\log_e$, though the base rarely matters --- it cancels.
+
+MLEs have many nice properties including **invariance** and **low variance**.
+
+## Example: Normal mean, $\sigma^2 = 1$
+
+The likelihood for $\mu$ in $N(\mu, 1)$ is
+$$L(\mu) = \prod_{i=1}^n \frac{1}{\sqrt{2\pi}} \exp\left\{ - \frac{1}{2} (x_i - \mu)^2 \right\}$$
+
+Taking the log likelihood yields:
+$$\log(L(\mu)) = l(\mu) = \sum_{i=1}^n \log\left(\frac{1}{\sqrt{2\pi}}\right) - \frac{1}{2} (x_i - \mu)^2$$
+
+Our standard calculus strategy is to take the derivative and set to zero:
+$$0 = \sum_{i=1}^n - (x_i - \mu) \Rightarrow n \mu = \sum_{i=1}^n x_i \Rightarrow \hat \mu = \bar X$$
+
+## Maximum Likelihood Example: $f(x) = \theta x^{\theta - 1}$
+
+Suppose we have $n$ independent samples, each with density $f(x) = \theta x^{\theta - 1}$.
+$$L(\theta) = \prod_{i=1}^n \theta x_i^{\theta - 1} = \theta^n \left(\prod_{i=1}^n x_i\right)^{\theta - 1}$$
+
+Taking the log,
+$$l(\theta) = n \log(\theta) + (\theta - 1) \sum_{i=1}^n \log(x_i)$$
+
+And the derivative **with respect to $\theta$**, setting to zero:
+$$\frac{d}{d\theta} l(\theta) = \frac{n}{\theta} + \sum_{i=1}^n \log(x_i) \Rightarrow \hat \theta = \frac{-n}{\sum_{i=1}^n \log(x_i)}$$
+
+NB: notice that for $x \le 1$, $\log(x) \le \log(1) = 0$, so $\hat \theta \ge 0$.
+
+## Hypothesis Tests
+
+Another place we use statistics is for **hypothesis tests**.
+
+A hypothesis test requires stating a **null hypothesis $H_0$** and an **alternative hypothesis $H_1$**. Some examples:
+\[
+\begin{aligned}
+H_0:& X \iid F_0 & \text{ vs. } & H_1: X \iid F_1 \\
+H_0:& E(X) \le \mu_0 & \text{ vs. } & H_1: E(X) > \mu_0 \\
+H_0:& F(x, y) = F_x(x) F_y(y) & \text{ vs. } & H_1: F(x, y) \ne F_x(x) F_y(y)
+\end{aligned}
+\]
+
+Goal: either **accept** the null hypothesis or **reject** the null hypothesis in favor of the alternative.
+
+## Type I and Type II Error
+
+If we **reject a true null hypothesis**, we have committed a **Type I error**.
+
+If we **accept a false null hypothesis**, we have committed a **Type II error**.
+
+The probability of making a Type I error is the **size** of the test:
+$$P(\text{Reject } H_0 \, | \, H_0)$$
+
+We define the probability of **not making a Type II error** when $H_1$ is true as the **power** of the test:
+$$P(\text{Reject } H_0 \, | \, H_1)$$
+
+Useful framework: pick a **maximum Type I error $\alpha$** and then pick a test that has **good power**.
+
+## Test Statistics
+
+In the previous slide we defined size and power using the **probability of rejecting** the null hypothesis (when it was true or false, respectively).
+
+This probability comes from the **test statistic** we use to make our decision:
+$$T(X_1, \ldots, X_n) = T$$
+
+and a **rejection region $\mathcal{R}$** such that
+$$T \in \mathcal{R} \iff \text{reject the null hypothesis}$$
+
+Usually, we pick $\mathcal{R}$ so that we maintain our $\alpha$-level:
+$$P(T \in \mathcal{R} \, | \, H_0) \le \alpha \quad \text{(size less than level)}$$
+and generate high power:
+$$P(T \in \mathcal{R} \, | \, H_1) \text{ is large}$$
+
+## Example: Testing $\mu_0 = 0$ vs. $\mu_0 = 1$
+
+Suppose we assume that
+$$X_i \iid N(\mu, 1) \quad \text{($\mu$ unknown)}$$
+and want to test:
+$$H_0: \mu = 0 \quad \text{ vs. } H_1: \mu = 1$$
+
+We already know that $\bar X_n$ is the MLE for $\mu$, perhaps that would be a good statistic:
+
+- When $H_0$ is true, $\bar X_n \sim N\left(0, \frac{1}{n}\right)$
+- When $H_1$ is true, $\bar X_n \sim N\left(1, \frac{1}{n}\right)$
+
+## Type I error and power ($\alpha = 0.05, n = 2$)
+
+```{r error-power, fig.height = 3, echo = FALSE}
+n <- 2
+sd <- sqrt(1/n)
+par(mar = c(2, 2, 2, 0))
+curve(dnorm(x, sd = sd), from = -2, 4, lwd = 2, col = "blue")
+curve(dnorm(x, mean = 1, sd = sd), add = TRUE, col = "red", lwd = 2)
+cut <- qnorm(0.95, sd = sd)
+regionx <- seq(cut, 4, length.out = 200)
+polygon(c(regionx, regionx[200], cut), c(dnorm(regionx, mean = 1, sd = sd), 0, 0), col = "#FF0000A0")
+polygon(c(regionx, regionx[200], cut), c(dnorm(regionx, sd = sd), 0, 0), col = "#0000FFA0")
+text("cutoff ->", x = cut - 0.5, y = 0.05)
+legend("topright", fill = c("blue", "red"), legend = c("Type I Error", "Power"))
+```
+
+## Computing rejection region and power ($n = 2$) for $\alpha=0.05$
+
+Computing the rejection region when $H_0: \mu = 0$:
+
+```{r rejection-region}
+n <- 2
+(cutoff <- qnorm(0.95, mean = 0, sd = sqrt(1/n)))
+```
+
+Computing the power of the test when $H_1: \mu = 1$:
+
+```{r power}
+1 - pnorm(cutoff, mean = 1, sd = sqrt(1/n))
+```
+
+## Summary: Inference
+
+- Write down quantities of interest as **population parameters**.
+- Use **sample statistics** to make decisions about parameters.
+- **Estimation**: make a reasonable guess; the **sampling distribution** defines uncertainty.
+- **Method of moments** and **maximum likelihood** will be our two main estimation techniques.
+- **Hypothesis tests**: see if data conform to a hypothesis; the **null** and **alternative** distributions define uncertainty.
+- **Test statistics** are used to guage evidence against the null hypothesis with thresholds selected using **size** and **power**

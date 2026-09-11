@@ -1,0 +1,87 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DATASCI 406 — Course Materials</title>
+<style>
+  :root { color-scheme: light dark; --fg:#1a1a1a; --bg:#fdfdfc; --mut:#6b6b6b;
+          --line:#e0dedb; --accent:#00274c; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg:#e8e6e3; --bg:#1b1c1e; --mut:#9a9793; --line:#33353a; --accent:#8ab4e8; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:2.5rem 1.25rem 5rem; background:var(--bg); color:var(--fg);
+         font:16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 46rem; margin: 0 auto; }
+  h1 { font-size:1.6rem; margin:0 0 .25rem; letter-spacing:-.01em; }
+  .sub { color:var(--mut); margin:0 0 2rem; }
+  h2 { font-size:1.05rem; text-transform:uppercase; letter-spacing:.08em;
+       color:var(--mut); margin:2.5rem 0 .5rem; padding-bottom:.4rem;
+       border-bottom:1px solid var(--line); }
+  ul { list-style:none; margin:0; padding:0; }
+  li { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:baseline;
+       padding:.6rem 0; border-bottom:1px solid var(--line); }
+  .name { flex:1 1 18rem; }
+  a { color:var(--accent); text-decoration:none; border-bottom:1px solid transparent; }
+  a:hover { border-bottom-color:currentColor; }
+  .dl { font-size:.85rem; white-space:nowrap; }
+  .get { background:color-mix(in srgb, var(--accent) 7%, transparent);
+         border:1px solid var(--line); border-radius:8px; padding:1rem 1.25rem; margin:0 0 1rem; }
+  .get p { margin:.35rem 0; }
+  code { font:13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+         background:color-mix(in srgb, var(--fg) 8%, transparent);
+         padding:.15em .4em; border-radius:4px; }
+  pre { margin:.4rem 0 .8rem; padding:.7rem .9rem; overflow-x:auto;
+        background:color-mix(in srgb, var(--fg) 6%, transparent);
+        border-radius:6px; }
+  pre code { background:none; padding:0; }
+  .get ol { margin:.4rem 0 .4rem 1.2rem; padding:0; }
+  .get li { display:block; border:none; padding:.25rem 0; }
+  footer { color:var(--mut); font-size:.85rem; margin-top:3rem; }
+</style>
+<main>
+<h1>DATASCI 406 — Computational Methods in Statistics and Data Science</h1>
+<p class="sub">University of Michigan, Fall 2026 · Mark M. Fredrickson</p>
+<div class="get">
+<p><strong>One line, in R. The same line every time.</strong> No git, no GitHub
+account, no extra packages:</p>
+<pre><code>source("https://markmfredrickson.github.io/datasci406/sync.R")</code></pre>
+<p>First run creates a <code>datasci406</code> folder and tells you where it is; open
+<code>datasci406.Rproj</code> inside it. Run the same line again whenever new material
+is announced and your folder is brought up to date &mdash; your <code>my-work</code> folder
+is left alone, and a course file you have edited is never overwritten (the new
+version lands beside it as <code>.new</code>).</p>
+<p>Prefer a browser? Download the
+<a href="https://github.com/markmfredrickson/datasci406/archive/refs/heads/main.zip">ZIP</a>,
+unzip it, open <code>datasci406.Rproj</code>. Already a git user? Clone
+<a href="https://github.com/markmfredrickson/datasci406">the repository</a>; nothing here
+ever needs pushing back. Single files below work too, but exercises load data by
+a relative path, so they expect the folder layout around them.</p>
+</div>
+<h2>Module 0 — Review</h2>
+<ul>
+<li><span class="name">Introduction to DATASCI 406</span> <span class="dl"><a href="modules/00-introduction-review/00-introduction.pdf">PDF</a></span> <span class="dl"><a href="modules/00-introduction-review/00-introduction.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Statistical Review</span> <span class="dl"><a href="modules/00-introduction-review/01-statistical-review.pdf">PDF</a></span> <span class="dl"><a href="modules/00-introduction-review/01-statistical-review.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Introduction to R</span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics.pdf">PDF</a></span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">R Basics: Notes and Exercises</span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics-exercises.html">HTML</a></span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics-exercises.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">R Basics: Notes and Exercises — solutions</span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics-exercises-solutions.html">HTML</a></span> <span class="dl"><a href="modules/00-introduction-review/02-r-basics-exercises-solutions.Rmd" download>.Rmd</a></span></li>
+</ul>
+<h2>Module 1 — Integrate</h2>
+<ul>
+<li><span class="name">Monte Carlo Integration</span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration.pdf">PDF</a></span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Monte Carlo Integration: Session Exercises</span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-exercises.html">HTML</a></span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-exercises.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Monte Carlo Integration: Session Exercises — solutions</span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-exercises-solutions.html">HTML</a></span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-exercises-solutions.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Monte Carlo Integration: Recap</span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-summary.pdf">PDF</a></span> <span class="dl"><a href="modules/01-integrate/01-monte-carlo-integration-summary.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Variance Reduction and Importance Sampling</span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction.pdf">PDF</a></span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Variance Reduction and Importance Sampling: Recap</span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-summary.pdf">PDF</a></span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-summary.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Variance Reduction and Importance Sampling: Session Exercises</span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-exercises.html">HTML</a></span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-exercises.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Variance Reduction and Importance Sampling: Session Exercises — solutions</span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-exercises-solutions.html">HTML</a></span> <span class="dl"><a href="modules/01-integrate/02-variance-reduction-exercises-solutions.Rmd" download>.Rmd</a></span></li>
+<li><span class="name">Module 1 Project: How Long Is a Perch?</span> <span class="dl"><a href="modules/01-integrate/project.html">HTML</a></span> <span class="dl"><a href="modules/01-integrate/project.Rmd" download>.Rmd</a></span></li>
+</ul>
+<h2>Datasets</h2>
+<ul>
+<li><span class="name">fish.csv</span> <span class="dl"><a href="data/fish.csv" download>fish.csv</a></span></li>
+<li><span class="name">aspirin.rda</span> <span class="dl"><a href="data/aspirin.rda" download>aspirin.rda</a></span></li>
+</ul>
+<footer>Generated September 11, 2026 · questions to
+<a href="mailto:mfredric@umich.edu">mfredric@umich.edu</a></footer>
+</main>

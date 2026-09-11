@@ -1,0 +1,413 @@
+---
+title: "Variance Reduction and Importance Sampling"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(49482)
+library(tidyverse)
+```
+
+# The Cost of Precision
+
+## Recap: Monte Carlo answers are estimates
+
+Last video: to compute $\theta = \E{g(X)}$ (or any integral we can write that way), we **sample and average**:
+$$\hat \theta_n = \frac{1}{n} \sum_{i=1}^n g(X_i)$$
+
+The CLT gave a confidence interval, and big-O gave the error rate:
+$$\text{error} \approx \tau \, n^{-1/2} = O(n^{-1/2}), \quad \tau^2 = \Var{g(X)}$$
+
+$n$ sets the **rate**; $\tau$ sets the **constant**. The rate is fixed — every estimator today is still a sample mean.
+
+But $\tau$ is not: different sampling schemes can estimate the **same $\theta$ with different $\tau$**.
+
+Today: **decrease the constant**.
+
+## Picking $n$ to achieve a width
+
+After we find a way to estimate, we can pick $n$ to **achieve given precision**.
+
+The CI width will be approximately:
+$$w = 2  z_{\alpha/2} \tau / \sqrt{n} \Rightarrow n = 4 z_{\alpha/2}^2 \tau^2 / w^2$$
+where $z_{\alpha/2} = P(Z \le \alpha/2)$, $Z \sim N(0, 1)$ and $\tau^2 = \Var{g(X)}$.
+
+We need to **make a good guess** for $\tau^2$.
+
+- Estimate using a small sample.
+- Find an upper bound and use the worst case.
+
+## Example: Finding an upper bound
+
+Let's estimate a probability for $X \sim N(0,1)$ again:
+$$\theta = P(X \le 1.96)$$
+
+Here, $X_i \sim N(0,1)$, $g(x) = \ind(x \le 1.96)$. Recall,
+\[
+\begin{aligned}
+g(X_i) &\sim \text{Bernoulli}(\theta)  \Rightarrow \text{Var}(g(X_i)) = \theta (1 - \theta)  \\
+\end{aligned}
+\]
+
+## Where is the max of ${\theta(1-\theta)}$?
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+par(mar = c(4,4,0,0))
+curve(x * (1 - x), from = 0, to = 1)
+abline(v = 0.5, lty = 3)
+abline(h = 0.25, lty = 3)
+```
+
+## 95\% CI with $w = 0.001$
+
+```{r }
+(targetN <- 4 * qnorm(0.975)^2 * 0.25 / 0.001^2)
+```
+
+```{r }
+gxs <- rnorm(targetN) <= 1.96
+(ci <- as.numeric(t.test(gxs)$conf.int))   ## 95% is the default
+diff(ci)
+```
+
+Width is well less than our target of 0.001
+
+## Efficiency
+
+Often we can find **two different estimators of the same $\theta$** using RVs $X$ and $Y$:
+
+In large samples:
+$$\hat \theta_x \sim N\left(\theta, \Var{\hat \theta_X} \right), \quad \hat \theta_Y \sim N\left(\theta, \Var{\hat \theta_Y}\right)$$
+
+They only differ in the variance terms!
+
+We say $\hat \theta_X$ is **more efficient** than $\hat \theta_Y$ if $\Var{\hat \theta_X} < \Var{\hat \theta_Y}$.
+
+Both converge at the same $O(n^{-1/2})$ rate — efficiency is a competition over the **constant**. The rest of this video is about engineering $\tau$ down.
+
+# Antithetic Variables
+
+## Antithetic variables
+
+So far, we have been generating **independent, identically distributed** collections of random variables.
+
+With **antithetic variables**, we introduce **dependence** in a way that **decreases the variance** of the estimator.
+
+The trick is to find a way to generate the dependence in a very particular way.
+
+## Thinking more about dependence and variance
+
+Suppose we have an estimator for $\theta$ that is a sample mean of $T_i$: $\hat \theta = m^{-1} \sum_{i=1}^m T_i$.
+
+The variance of this estimator is
+$$\text{Var}(\hat \theta) = \frac{1}{m^2} \left[\sum_{i = 1}^m \Var{T_i} + \sum_{i \ne j} \text{Cov}(T_i, T_j) \right]$$
+
+When $T_i$ is independent of $T_j$ the covariance term is zero.
+
+What if we could generate **negatively correlated $T_i$ and $T_j$**?
+
+## Example: Uniform random variables
+
+If $U \sim U(0,1)$ then $U' = 1 - U$ has the **same distribution** as $U$, and
+$$\text{Cov}(U, U') = E(U(1 - U)) - (1/4) = E(U) - E(U^2) - 1/4 = 1/4 - 1/3 = - 1/12$$
+
+More generally, if $t$ is **monotonic**, then $t(U)$ and $t(1 - U)$ are also **negatively correlated**.
+
+So: for the price of $m/2$ uniforms, we get $m$ draws whose sample mean has *less* variance than $m$ independent draws.
+
+## Example continued
+
+Let's estimate
+$$\theta = \int_0^1 u^{1/3} \, du = \E{U^{1/3}} = 3/4$$
+(an integral we can check exactly). Note $t(u) = u^{1/3}$ is monotone.
+
+To reduce the variance, we'll use pairs:
+$$\hat \theta = \frac{1}{m/2} \sum_{i = 1}^{m/2} \frac{t(U_i) + t(1 - U_i)}{2}$$
+
+## IID solution
+
+```{r }
+iids <- runif(10000)^(1/3)
+mean(iids)
+(est_var_iid <- var(iids) / 10000)
+```
+
+## Antithetic variables
+
+To keep the sample size the same, let's only generate 5000 uniforms, then supplement those with 5000 copies of $1 - U$.
+
+```{r }
+tmp <- runif(5000)
+antis <- (tmp^(1/3) + (1 - tmp)^(1/3)) / 2
+mean(antis)
+(est_var_anti <- var(antis) / 5000)
+```
+
+## Percent variance reduction
+
+```{r }
+1 - (est_var_anti / est_var_iid)
+```
+
+More than a 80\% reduction in variance (and we only had to generate 1/2 as many random variables).
+
+Note: it is not always obvious how to generate the antithetic variable pairs, but when you can, they are a very powerful tool.
+
+# Importance Sampling
+
+## Changing the sampling distribution
+
+Recall the **multiply and divide** trick from last video. Even when our target *is already* an expectation,
+$$\theta = \E{h(X)} = \int_{-\infty}^{\infty} h(x) f(x) \, dx$$
+we can multiply and divide by another density:
+$$\int_{-\infty}^\infty h(x) f(x) \, dx = \int_{-\infty}^{\infty} h(x) f(x) \frac{g(x)}{g(x)} \, dx = \E{h(Y) \frac{f(Y)}{g(Y)}}$$
+for a random variable $Y$ with density $g(y)$.
+
+Why bother, when we could sample $X$ directly? Because **a good choice of $g$ can have far lower variance**.
+
+## Example: Tail probabilities
+
+Sampling from $X$ directly is a poor way to estimate **tail probabilities**
+$$P(X \ge x)$$
+since we get relatively few random samples from the tail.
+
+Ex.: For $Z \sim N(0,1)$, what is $P(Z \ge 4.5) = E(\ind(Z \ge 4.5))$?
+
+```{r }
+k <- 100000
+sum(rnorm(k) >= 4.5)
+```
+
+One hundred thousand draws and **not a single one** landed in the region we care about.
+
+## Using a shifted exponential
+
+Consider instead drawing from $Y = 4.5 + \text{Exp}(1)$ so that
+$$g(y) = \exp(-(y - 4.5)), \quad y > 4.5$$
+
+$$\E{\ind(Z \ge 4.5)} = \E{\frac{\ind(Y \ge 4.5) \phi(Y)}{g(Y)}}  = \E{\frac{\phi(Y)}{g(Y)}}$$
+
+```{r }
+ys <- rexp(k) + 4.5
+ratios <- dnorm(ys) / (dexp(ys - 4.5))
+mean(ratios)
+(truep <- pnorm(4.5, lower.tail = FALSE))
+```
+
+## Variances
+
+Recall, we prefer estimators that are **efficient** (have lower variance).
+
+Variance of the direct (indicator) estimator (true, not estimated):
+
+```{r }
+truep * (1 - truep) / k
+```
+
+Estimated variance of the shifted exponential version:
+
+```{r }
+var(ratios) / k
+```
+
+Every sample from $Y$ lands in the tail and carries a small, smooth weight — instead of almost every sample contributing exactly zero.
+
+## Terminology
+
+We call using $\E{h(Y) f(Y) / g(Y)}$ to estimate $\E{h(X)}$ **importance sampling**.
+
+- We call the distribution of $Y$ the "envelope."
+- The density of $Y$, $g(y)$, is the "importance function."
+- We call the ratio $f(Y) / g(Y)$ the "importance weights."
+
+The name: $g$ concentrates our samples where they are **important** for the integral, and the weights undo the distortion.
+
+## Picking the envelope distribution
+
+The envelope must be **non-zero wherever $f$ is** (we cannot weight samples we never see), and we can get into trouble when the ratio $f(x) / g(x)$ gets very large (e.g., $f$ has "fatter tails" than $g$).
+
+In particular, we need the importance sampling estimator to have finite variance for the law of large numbers and the CLT to hold:
+$$E_Y\left(h(Y)^2 \frac{f(Y)^2}{g(Y)^2}\right) = \int_{-\infty}^{\infty} h(y)^2 \frac{f(y)^2}{g(y)^2} g(y) \, dy = E_X\left(h(X)^2 \frac{f(X)}{g(X)}\right) < \infty$$
+
+## Example: Targeting the Cauchy distribution with the Normal
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+curve(dcauchy(x), -10, 10, ylim = c(0, dnorm(0)))
+curve(dnorm(x), add = TRUE, col = "red", lty = 2)
+legend("topright", c("Cauchy", "Standard Normal"), col = c("black", "red"), lty = 1:2)
+```
+
+```{r echo=FALSE}
+set.seed(390393)
+```
+
+## Cauchy from Normal
+
+Let $C \sim \text{Cauchy(0)}$. Let's estimate $P(C \ge 2)$:
+
+```{r }
+k <- 1000000 # one million samples
+ys <- rnorm(k)
+iweights <- dcauchy(ys) / dnorm(ys)
+estimates <- cumsum(iweights * (ys >= 2)) / (1:k)
+```
+
+## Plotting estimate vs. number of samples
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+ks <- seq(1, k, length.out = 1000) %>% round
+ggplot(data.frame(estimate = estimates[ks], n = ks), aes(x = n, y = estimate)) + geom_line() +
+    geom_abline(slope = 0, intercept = pcauchy(2, lower.tail = FALSE), lty = 2)
+```
+
+## Avoiding degenerate envelopes
+
+Importance sampling for the Cauchy distribution will always be difficult due to the "fat tails."
+
+Specifically, if the quantity
+$$h(x) \frac{f(x)}{g(x)} < c, \quad \text{for some $c$}$$
+then you should be ok.
+
+The cases we'll consider in this class will be safe, but keep this in mind when using importance sampling in new ways.
+
+## Variance terms
+
+Which envelopes are *good*? Recall that for **IID data**, the variance of the sample mean is
+\[
+\Var{\hat \theta} = \Var{\frac{1}{n} \sum_{i=1}^n h(Y_i) \frac{f(Y_i)}{g(Y_i)}} = \frac{1}{n} \Var{h(Y) \frac{f(Y)}{g(Y)}}
+\]
+
+\[
+\begin{aligned}
+    \Var{h(Y) \frac{f(Y)}{g(Y)}} &= \E{h(Y)^2 \frac{f(Y)^2}{g(Y)^2} } - \left[\E{h(Y) \frac{f(Y)}{g(Y)}}\right]^2  \\
+    &= \int h(y)^2 \frac{f(y)^2}{g(y)^2} \, g(y) \, dy - \theta^2  \\
+\end{aligned}
+\]
+
+## Further decomposing variance
+
+Notice that for any function $t(x)^2 = |t(x)| \, |t(x)|$.
+\[
+\begin{aligned}
+\Var{h(Y) \frac{f(Y)}{g(Y)}}
+    &= \int h(y)^2 \frac{f(y)^2}{g(y)^2} \, g(y) \, dy - \theta^2  \\
+    &= \int |h(y)| |f(y)|  \frac{|h(y)| |f(y)| }{g(y)} \, dy - \theta^2   \\
+    &= \int |h(y)| f(y)  \frac{|h(y)| f(y) }{g(y)} \, dy - \theta^2
+\end{aligned}
+\]
+
+## Picking a $g(y)$ to minimize variance
+
+Observe that because $|h(x)| f(x) > 0$, the following is a proper density:
+$$g(y) = \frac{|h(y)| f(y)}{\int_{-\infty}^\infty |h(y)| f(y) \, dy}$$
+
+\[
+\begin{aligned}
+\Var{h(Y) \frac{f(Y)}{g(Y)}}
+    &= \int |h(y)| f(y)  \frac{|h(y)| f(y) }{g(y)} \, dy - \theta^2   \\
+    &= \int |h(y)| f(y) \left[\int |h(y)| f(y) \, dy \right]   \, dy  - \theta^2  \\
+    &= \left[\int |h(y)| f(y) \, dy \right]^2 - \theta^2
+\end{aligned}
+\]
+and if $h(y) > 0$ for all $y$ where $f(y) > 0$, then the **variance would be zero!**
+
+## Using minimum variance $g$
+
+So we should pick
+$$g(y) = \frac{|h(y)| f(y)}{\int_{-\infty}^\infty |h(y)| f(y) \, dy}$$
+
+Why is this not helpful?  We would need to know $\int |h(x)| f(x) \, dx$, effectively $\theta$.
+
+Why is this helpful?  We can try to pick $g(y) \approx c \, |h(y)| f(y)$.
+
+## Example: Truncated Normal
+
+Consider the **truncated Normal distribution** $Z \mid 0 \le Z \le 1$, $Z \sim N(0,1)$, with density
+$$f(x) = \frac{\phi(x)}{\Phi(1) - \Phi(0)}, \quad 0 \le x \le 1$$
+
+We want to estimate $\E{X}$, so $h(x) = x$ and the ideal envelope is $\propto |x| \phi(x)$: **small near 0, rising toward 1**.
+
+Two built-in candidates on $(0,1)$:
+
+- Uniform(0,1) — flat, ignores the shape
+- Beta(1.5, 1) — density $1.5 \sqrt{x}$, rising like the target
+
+## Graphing $|h(x)| f(x)$ against the candidates
+
+```{r echo=FALSE, fig.height=2.8, fig.width=6}
+par(mar = c(0, 0, 0, 0))
+mx <- dnorm(1)
+curve(abs(x) * dnorm(x), from = 0, to = 1, lwd = 2)
+betas <- c(1, 1.5)
+for (i in seq_along(betas)) {
+    b <- betas[i]
+    bb <- dbeta(1, b, 1)
+    curve(mx * dbeta(x, b, 1) / bb, add = TRUE, lty = i + 1, lwd = 2)
+}
+legend("bottomright", lty = 1:3, legend = c("|x| phi(x)", "U(0,1)", "B(1.5, 1)"))
+```
+
+## Comparing the two envelopes
+
+```{r }
+tn <- function(x) { dnorm(x) / (pnorm(1) - pnorm(0)) }
+k <- 10000
+yu <- runif(k)
+iwu <- tn(yu) / dunif(yu)    ## f(y) / g(y)
+mean(yu * iwu)
+yr <- rbeta(k, 1.5, 1)
+iwr <- tn(yr) / dbeta(yr, 1.5, 1)
+mean(yr * iwr)
+```
+
+## Comparing variance
+
+```{r }
+varu <- var(yu * iwu) # variance of single h(Y) f(Y) / g(Y) term
+varr <- var(yr * iwr)
+(varu - varr) / varu  # percent decrease, uniform -> Beta
+```
+
+Relative CI width:
+
+```{r }
+diff(t.test(yr * iwr)$conf.int) / diff(t.test(yu * iwu)$conf.int)
+```
+
+The envelope that **tracks $|h(x)| f(x)$** wins.
+
+## Further Reading in Chapter of SCR
+
+Every estimator today was a **sample mean**, which is why the rate never budged and all the work went into $\tau$. Two more techniques from the reading:
+
+- **Control variates** (SCR \S6.5--6.7): given a correlated $v(X)$ whose mean $\mu$ you know *exactly*, $h(X) + \beta(v(X) - \mu)$ is unbiased for **every** $\beta$ --- so choose the $\beta$ with the least variance. Antithetic variables are the case $v(U) = t(1 - U) - t(U)$, $\mu = 0$, where the best $\beta$ turns out to be $1/2$ for every $t$.
+- **Stratified sampling** (SCR \S6.7--6.8): partition the domain, sample each region separately, recombine. The cheapest of these to write, and on today's $u^{1/3}$ integral the most effective --- 10 equal strata cut the variance 97\%, against antithetic's 86\%. But it needs $k$ strata *per dimension*, so it fades in high dimensions for exactly the reason grid search did.
+
+<!--
+## Extensions: beyond the chapter
+
+- **Common random numbers**: comparing two procedures? Drive both with the *same* draws. The difference is far less variable than the difference of two independent runs. You will want this in the project.
+- **Quasi-Monte Carlo**: trade randomness for a deterministic, deliberately spread-out point set. It beats $O(n^{-1/2})$ in low dimensions --- and gives up the CLT interval along with the randomness. Stratified sampling is the first step down this road, which is why it, too, works best in low dimensions.
+
+Both are worth reaching for before you reach for a bigger $n$.
+-->
+
+## Summary
+
+- The $O(n^{-1/2})$ rate is fixed: a 10$\times$ better answer costs 100$\times$ the draws. Variance reduction shrinks the **constant** $\tau$ instead.
+- Two estimators of the same $\theta$ differ only in variance; the smaller is **more efficient**.
+- **Antithetic variables**: pair each draw with a negatively correlated partner. Needs $t$ monotone; here it cut the variance 86\% using half as many uniforms.
+- **Importance sampling**: sample from an envelope $g$, reweight by $f/g$. The ideal $g$ is proportional to $|h| f$ --- we cannot normalize that, but we can imitate it.
+- It is the tool of choice for **tail probabilities**, where direct sampling puts almost no draws where they matter. Watch the weights: $g$ with thinner tails than $f$ blows up the variance.
+- Importance sampling returns in Module 2: generating from distributions R doesn't have, and resampling with the weights.
