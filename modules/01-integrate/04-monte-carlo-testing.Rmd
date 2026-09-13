@@ -1,0 +1,357 @@
+---
+title: "Monte Carlo Methods for Hypothesis Tests"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "75%", fig.align = "center",
+                      fig.width = 6, fig.height = 2.2)
+options(width = 60, digits = 4)
+set.seed(21188)
+library(tidyverse)
+```
+
+# Tests as Decisions
+
+## Estimators, Confidence Intervals, and Operating Characteristics
+
+Last video: estimators $\hat \theta$ and confidence intervals $[A, B]$  are random variables, and everything we wanted to know about about them (**operating characteristics**) are **expectations over the sampling distribution**. 
+
+* Bias: $\E{\hat \theta}$
+* Variance $\Var{\hat \theta}$
+* Mean squared error: $\E{(\hat \theta - \theta)^2}$
+* Coverage: $P(A \le \theta \le B)$
+* Expected width: $\E{B - A}$
+
+## Hypothesis testing.
+
+A hypothesis test is a rule that turns a dataset into a **decision** between two options ($H_0$ and $H_1$). The **decision is a Bernoulli** random variable, and the two things we want to know about it are both probabilities:
+
+$$\alpha = P(\text{reject} \mid H_0 \text{ true}), \qquad \text{power} = P(\text{reject} \mid H_1 \text{ true})$$
+
+As ever, probabilities are expectations of indicators, so we can use MC to estimate these operating characteristics.
+
+## The pieces
+
+- A **null hypothesis** $H_0$ and an **alternative** $H_1$, each naming a distribution for the data.
+- A **test statistic** $T = T(X_1, \ldots, X_n)$: one number summarizing the evidence.
+- A **rejection region**: the values of $T$ that make us reject. 
+
+Two ways to be wrong:
+
+| | $H_0$ true | $H_1$ true |
+|---|---|---|
+| reject | **Type I error** ($\alpha$) | correct |
+| do not reject | correct | **Type II error** ($\beta$) |
+
+**Size** is $\alpha$; **power** is $1 - \beta$. We fix the size we are willing to tolerate, then want as much power as we can get.
+
+## Why simulate at all?
+
+For the classical tests you already know, $c$ comes from a table: the null distribution of $T$ has a name, so `qt` or `qnorm` hands you the cutoff.
+
+That stops working the moment you leave the textbook cases:
+
+- The statistic has no tractable null distribution (the maximum, a ratio, a distance between two curves).
+- The distributional assumptions behind the table are false for your data.
+- You don't want to use an asymptotic approximation. 
+
+**Monte Carlo replaces the table.** If you can *simulate* under $H_0$, you can build the null distribution yourself, and the cutoff follows.
+
+## The recipe
+
+$$\alpha = \E{\ind(T \in \mathcal{R}) \mid H_0}, \qquad \text{power}(\theta_1) = \E{\ind(T \in \mathcal{R}) \mid \theta_1}$$
+
+Both are averages of indicators over simulated datasets:
+
+```{r eval=FALSE}
+null_dist <- replicate(k, T(rmodel(n, theta_0)))   # under H0
+alt_dist  <- replicate(k, T(rmodel(n, theta_1)))   # under H1
+tibble(H0 = null_dist, H1 = alt_dist) %>%          # look before you cut
+  pivot_longer(everything()) %>%
+  ggplot(aes(value, fill = name)) + geom_density(alpha = 0.5)
+c_hat <- quantile(null_dist, 0.95)                 # the cutoff
+mean(alt_dist > c_hat)                             # the power
+```
+
+Each of those is a sample mean or a sample quantile --- except the picture in
+the middle, which is the one that tells you whether the rest are pointed the
+right way.
+
+## Plotting distributions
+
+```{r echo=FALSE, fig.height = 2.1, out.width = "78%"}
+xs <- seq(-3.5, 5.5, length.out = 500)
+cval <- qnorm(0.95)
+dens <- bind_rows(
+  tibble(x = xs, d = dnorm(xs),    hyp = "H0"),
+  tibble(x = xs, d = dnorm(xs, 2), hyp = "H1"))
+tail_of <- function(h) filter(dens, hyp == h, x >= cval)
+ggplot(dens, aes(x = x, y = d, colour = hyp, fill = hyp)) +
+  geom_area(data = tail_of("H1"), alpha = 0.5, colour = NA) +
+  geom_area(data = tail_of("H0"), alpha = 0.8, colour = NA) +
+  geom_line() +
+  geom_vline(xintercept = cval, lty = 2) +
+  annotate("text", x = cval, y = 0.42, label = "c", hjust = -0.5) +
+  annotate("segment", x = 3.9, xend = 2.35, y = 0.10, yend = 0.028,
+           linewidth = 0.3) +
+  annotate("text", x = 3.95, y = 0.10, label = "alpha", parse = TRUE,
+           hjust = 0, size = 3) +
+  annotate("text", x = 2.65, y = 0.15, label = "power", size = 3) +
+  labs(x = "T", y = NULL, colour = NULL, fill = NULL)
+```
+
+Two distributions of the **same statistic**, assuming two different hypotheses. Here we will use a simple cutoff for the rejection region, and the two shaded areas to its right are the two numbers we want:
+
+- the sliver under the $H_0$ curve is the **size** $\alpha$,
+- the much larger area under the $H_1$ curve is the **power**.
+
+## Which values of $T$ count as evidence against null?
+
+Nothing forces $\mathcal{R}$ into the upper tail. Could be both tails or something else (tails are used when we have unimodal null)
+- $H_1$ shifts $T$ **up**: $\mathcal{R} = \{T > c\}$, with $c$ the upper $\alpha$ quantile of the null.
+- $H_1$ shifts $T$ **down**: $\mathcal{R} = \{T < c\}$, with $c$ the lower $\alpha$ quantile. A likelihood ratio $L_0 / L_1$ runs this way.
+- $H_1$ can move $T$ **either way**: split the budget, $\alpha/2$ into each tail.
+
+There may be more than a single distribution for each hypothesis (**composite hypotheses**) requiring more plots.
+
+## Uniform with unknown maximum
+
+Keep the setting from last video: $X_1, \ldots, X_n \iid U(0, \theta)$, $n = 20$.
+
+$$H_0: \theta = 2 \quad \text{versus} \quad H_1: \theta > 2$$
+
+The two estimators from last video double as test statistics --- both should be **large** when $\theta$ is large:
+
+- $\hat\theta = \max_i X_i$ (the MLE)
+- $\tilde\theta = 2 \bar X$ (method of moments)
+
+We know the MLE is the better *estimator*. That does not automatically make it the better *test*, and the two questions are not the same question.
+
+# Finding the Rejection Region
+
+## Simulating the null distribution
+
+```{r}
+k <- 20000; n <- 20; theta0 <- 2
+null_data <- replicate(k, runif(n, 0, theta0), simplify = FALSE)
+null_mle <- map_dbl(null_data, max)
+null_mom <- map_dbl(null_data, ~ 2 * mean(.x))
+```
+
+```{r echo=FALSE, fig.height = 1.9, out.width = "80%"}
+tibble(mle = null_mle, mom = null_mom) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(x = value, fill = name)) +
+  geom_density(alpha = 0.6) +
+  labs(x = "T under H0", fill = NULL)
+```
+
+## The cutoff is a quantile
+
+We want the smallest region $T > c$ with $P(T > c \mid H_0) \le 0.05$. That is the **upper 5% quantile** of the null distribution.
+
+```{r}
+(c_mle <- unname(quantile(null_mle, 0.95)))
+(c_mom <- unname(quantile(null_mom, 0.95)))
+```
+
+The MLE's cutoff is just **below** 2, and it has to be: $\max_i X_i < 2$ always under $H_0$, so a cutoff at or above 2 gives a test that never rejects anything, ever.
+
+The method-of-moments cutoff sits well above 2, since $2\bar X$ is symmetric about 2.
+
+# Power
+
+## Power against a specific alternative
+
+Simulate under $H_1$ and count rejections. Same code, different $\theta$.
+
+```{r}
+theta1 <- 2.2
+alt <- replicate(k, runif(n, 0, theta1), simplify = FALSE)
+c(mle = mean(map_dbl(alt, max) > c_mle),
+  mom = mean(map_dbl(alt, ~ 2 * mean(.x)) > c_mom))
+```
+
+At the same size, the MLE test rejects a false null about four times as often.
+
+## Power curves
+
+One alternative is a single number. Usually we want power as a function of the alternative.
+
+```{r}
+reject <- function(theta, k = 1000, n = 20) {
+  X <- matrix(runif(n * k, 0, theta), nrow = n)
+  c(max = mean(apply(X, 2, max) > c_mle),
+    xbar = mean(2 * colMeans(X) > c_mom))
+}
+```
+
+Both cutoffs are fixed: they came from the null simulation and do not move as $\theta$ does. Only the data generating $X$ changes.
+
+## The two curves
+
+```{r echo=FALSE, fig.height = 2.1, out.width = "82%"}
+thetas <- seq(2, 3.2, by = 0.05)
+pc <- map_dfr(thetas, ~ as_tibble_row(reject(.x))) %>%
+  mutate(theta = thetas) %>%
+  pivot_longer(-theta, names_to = "test", values_to = "power")
+ggplot(pc, aes(x = theta, y = power, colour = test)) +
+  geom_line() +
+  geom_hline(yintercept = c(0.05, 0.8), lty = 3) +
+  labs(x = expression(theta), y = "power")
+```
+
+## Reading the power curves
+
+- **A power curve must start at $\alpha$.** At $\theta = \theta_0$ the alternative *is* the null, so power is the size. A curve that starts above 0.05 is not a more powerful test; it is a broken one.
+- Power rises to 1 as the alternative moves away. Every consistent test does this eventually; what separates them is **how fast**.
+- `max` reaches 80% power while `xbar` is still near the floor.
+
+Comparing tests means comparing **power at a common size**. A test with higher power and a larger size has not won anything.
+
+## Monte Carlo error on a power curve
+
+Each point is a proportion out of $k = 1000$, so its standard error is at most $\sqrt{0.25/1000} \approx 0.016$.
+
+```{r echo=FALSE, fig.height = 2.0, out.width = "82%"}
+pc %>% filter(test == "max") %>%
+  mutate(lo = power - 2 * sqrt(power * (1 - power) / 1000),
+         hi = power + 2 * sqrt(power * (1 - power) / 1000)) %>%
+  ggplot(aes(x = theta, y = power)) +
+  geom_ribbon(aes(ymin = lo, ymax = hi), alpha = 0.3) +
+  geom_line() + labs(x = expression(theta), y = "power")
+```
+
+Wiggles smaller than the band are noise. If a curve needs to be smooth, raise $k$ --- do not smooth the picture.
+
+# $p$-values
+
+## From a fixed cutoff to a measured one
+
+A rejection region answers a yes/no question at a size fixed in advance. The **$p$-value** answers a finer one:
+
+> How extreme was the observed statistic, measured against the null distribution?
+
+$$p = P(T \ge t_{\text{obs}} \mid H_0)$$
+
+It is the smallest $\alpha$ at which this data would have led to rejection. And it is one more probability under $H_0$, so it is one more average of an indicator over the null simulation.
+
+## Computing a Monte Carlo $p$-value
+
+```{r}
+x <- runif(n, 0, 2.4)    # one dataset from an alternative, "real data"
+t_obs <- max(x)
+mean(null_mle >= t_obs)
+```
+
+Careful with the edge case. If `t_obs` exceeds every simulated null value this returns **exactly 0**, claiming the data is impossible under $H_0$. It is not impossible --- we merely did not simulate enough.
+
+## Never report a $p$-value of zero
+
+The standard fix counts the observed value as one of the draws:
+$$\hat p = \frac{1 + \#\{T_b \ge t_{\text{obs}}\}}{B + 1}$$
+
+```{r}
+mean(c(t_obs, null_mle) >= t_obs)
+```
+
+This can never be 0, it is never off by more than $1/(B+1)$, and it makes the test **exactly valid** at any size --- the $p$-value is uniform under $H_0$, rather than merely approximately so.
+
+## The duality
+
+A $p$-value and a rejection region are two views of one decision:
+
+$$p \le \alpha \iff T > c_\alpha$$
+
+So you can work either way, and which you choose is a matter of what you want to report:
+
+- The **region** is what you build when the size is fixed in advance and you run the test many times --- a power study needs a yes/no on every replication.
+- The **$p$-value** is what you report from a single analysis: it keeps information the yes/no throws away.
+
+# Two-Sided Tests
+
+## When the alternative can go either way
+
+$$H_0: \theta = 2 \quad \text{versus} \quad H_1: \theta \ne 2$$
+
+Now $\max_i X_i$ is evidence in **two** directions: too big says $\theta > 2$, too small says $\theta < 2$. So $\mathcal{R}$ has two pieces,
+
+$$\mathcal{R} = \{T < c_{\text{lo}}\} \cup \{T > c_{\text{hi}}\}$$
+
+and the 5% budget is split, 2.5% into each tail. Equal tails is a convention, not a law --- but it is the right default when you have no reason to care more about one direction.
+
+## Two tails of very different sizes
+
+```{r}
+(cs <- unname(quantile(null_mle, c(0.025, 0.975))))
+```
+
+```{r echo=FALSE, fig.height = 1.7, out.width = "76%"}
+ggplot(tibble(T = null_mle), aes(x = T)) +
+  geom_density(fill = "grey75", colour = NA) +
+  geom_vline(xintercept = cs, lty = 2) +
+  labs(x = "max under H0", y = NULL)
+```
+
+The lower piece is everything below `r round(cs[1], 3)`; the upper piece is the sliver between `r round(cs[2], 3)` and 2. Each holds 2.5% of the null.
+
+**Two-sided does not mean symmetric.** It means a fixed probability in each tail, and you get that by asking the null distribution for quantiles --- never by taking $\pm$ something.
+
+## A two-sided $p$-value
+
+Take the smaller tail and double it:
+
+$$\hat p = 2 \min\left\{ P(T \le t_{\text{obs}}), \; P(T \ge t_{\text{obs}}) \right\}$$
+
+```{r}
+aug0 <- c(t_obs, null_mle)
+p_lo <- mean(aug0 <= t_obs)
+p_hi <- mean(aug0 >= t_obs)
+(p_two <- min(1, 2 * min(p_lo, p_hi)))
+```
+
+Keep the $(1 + \#)/(B+1)$ form in both tails, and cap at 1 --- doubling a tail near 0.5 will otherwise hand you a $p$-value above 1.
+
+# Inverting a Test
+
+## The set of nulls you cannot reject
+
+So far: fix $\theta_0$, ask whether to reject. **Turn it around.** Hold the data fixed and ask which values of $\theta_0$ survive the test:
+
+$$\text{CI}_{1-\alpha} = \{\theta_0 : \text{the level-}\alpha \text{ test of } H_0: \theta = \theta_0 \text{ does not reject}\}$$
+
+That set is a $1 - \alpha$ confidence interval, and it needs no proof beyond the size of the test: if $\theta$ is the truth, the test rejects it with probability $\alpha$, so the set contains it with probability $1 - \alpha$.
+
+## Inverting on a grid
+
+```{r}
+survives <- function(theta_c, t, B = 2000) {
+  nd <- replicate(B, max(runif(n, 0, theta_c)))
+  q <- quantile(nd, c(0.025, 0.975))
+  t >= q[1] && t <= q[2]            # TRUE = do not reject
+}
+grid <- seq(2, 3.2, by = 0.01)
+keep <- map_lgl(grid, survives, t = t_obs)
+range(grid[keep])
+```
+
+One simulated null distribution per candidate $\theta_0$; the kept values are the interval. 
+
+## Summary
+
+- Size and power are **probabilities of rejecting**, so use Monte Carlo for expectations of indicators.
+- Simulate null and alternative distributions. Find rejection with probability $\alpha$ under null with **high power** under alternative.
+- May need plots. Fix null and sweep the alternative to get a **power curve**.
+- Use the $(1 + \#)/(B+1)$ form for Monte Carlo $p$-values: never zero, and exactly valid.
+- **Two-sided**: 2.5% in each tail, taken as **quantiles** of the null. Not $\pm$ anything --- the two pieces are the same probability, not the same width.
+- **Invert** the test to get a confidence interval: the $\theta_0$ you cannot reject. No pivot and no closed form required, so any test you can simulate gives you an interval.

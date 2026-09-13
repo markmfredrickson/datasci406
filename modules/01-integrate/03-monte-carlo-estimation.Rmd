@@ -1,0 +1,485 @@
+---
+title: "Monte Carlo Methods for Estimation"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "75%", fig.align = "center",
+                      fig.width = 6, fig.height = 2.2)
+options(width = 60, digits = 4)
+set.seed(70413)
+library(tidyverse)
+```
+
+# A New Thing to Estimate
+
+## Where we are
+
+The first two videos estimated $\E{h(X)}$ --- a number we could in principle have got by calculus, if the calculus were tractable. The recipe never changed: **sample, apply $h$, average**.
+
+Today with consider 
+
+> We have data $X_1, \ldots, X_n$ and a rule $\hat \theta(X_1, \ldots, X_n)$ for guessing $\theta$. Is it any good? Is it better than the other rule?
+
+Now we want to know about $\E{h(\hat \theta)}$ -- which is an **operating characteristic** of the estimator $\hat \theta$. To draw from the distribution of $\hat \theta$, we will draw **random vectors** $X_1, \ldots, X_n$.
+
+## Estimators are random variables
+
+An **estimator** is a function of the sample, so it is a random variable. Its distribution is the **sampling distribution** of $\hat\theta$.
+
+Everything we might want to know about the estimator is a feature of that distribution:
+
+- Is it centered on $\theta$? (**unbiased**)
+- How precise of an estimator is it? (**variance**)
+- How far from $\theta$ is it, typically? (**mean squared error**)
+
+Each is an **expectation** over the sampling distribution. So each is an integral, and each is a job for Monte Carlo.
+
+## The simulation loop
+
+Only one thing changes from the last two videos: **what one draw is**. Before it was a number $X_i$. Now it is an **entire dataset**.
+
+```{r eval=FALSE}
+theta_hats <- replicate(k, {
+  x <- rmodel(n)        # simulate a whole dataset of size n
+  estimator(x)          # collapse it to one number
+})
+```
+
+`theta_hats` holds $k$ draws from the sampling distribution. From there it is ordinary Monte Carlo: to estimate $\E{g(\hat\theta)}$, average $g$ over those draws.
+
+## Do not confuse $n$ and $k$
+
+| | $n$ | $k$ |
+|---|---|---|
+| what it is | size of one dataset | number of replications |
+| set by | the problem | your patience |
+| bigger means | the **estimator** does better | **you** know it better |
+| shrinks | $\Var{\hat\theta}$ | the error in our *estimate* of $\Var{\hat\theta}$ |
+
+Raising $k$ does **not** make the estimator better. It sharpens our description of it.
+
+So if a simulation reports an MSE of 0.04, that 0.04 is itself a Monte Carlo estimate, and it deserves a confidence interval like any other.
+
+## A concrete question
+
+$X_1, \ldots, X_n \iid U(0, \theta)$, with $\theta$ unknown. Two familiar estimators:
+
+- **Method of moments**: match population moments to sample moments.
+- **Maximum likelihood**: pick the $\theta$ making the data most probable.
+
+Two respectable principles, giving two different numbers. This is exactly the Model U situation from your project, so let us do both properly.
+
+## Method of moments
+
+The population mean is a function of $\theta$. Work it out:
+$$\E{X} = \int_0^\theta x \cdot \frac{1}{\theta}\,dx
+ = \frac{1}{\theta}\left[\frac{x^2}{2}\right]_0^\theta = \frac{\theta}{2}$$
+
+Invert it --- $\theta = 2\,\E{X}$ --- and replace the population mean by the sample mean:
+$$\tilde \theta = 2 \bar X$$
+
+It is **unbiased**, and the proof is that inversion run forwards:
+$$\E{\tilde\theta} = 2\,\E{\bar X} = 2 \cdot \frac{\theta}{2} = \theta$$
+
+That worked because $\theta$ is a **linear** function of $\E{X}$ here. Method-of-moments estimators are not unbiased in general.
+
+## Maximum likelihood
+
+The likelihood is the joint density, read as a function of $\theta$:
+$$L(\theta) = \prod_{i=1}^n \frac{1}{\theta}\,\ind(0 \le x_i \le \theta)
+ = \theta^{-n}\, \ind\!\left(\theta \ge \max_i x_i\right)$$
+because all $n$ indicators are 1 exactly when $\theta$ clears the largest observation.
+
+Two observations finish it:
+
+- if $\theta < \max_i x_i$ then $L(\theta) = 0$;
+- if $\theta \ge \max_i x_i$ then $L(\theta) = \theta^{-n}$, **strictly decreasing**.
+
+So $L$ is largest at the smallest feasible $\theta$: $\hat\theta = \max_i X_i$.
+
+## What we did not do
+
+We never set a derivative to zero.
+
+The support of $f$ **depends on the parameter**, so $L$ jumps from $0$ up to $\theta^{-n}$ at $\theta = \max_i x_i$. It is discontinuous exactly at its maximizer, and $\partial_\theta \log L = 0$ has no solution anywhere.
+
+This is the standard cautionary example. Differentiate-and-solve is a **method for finding interior maxima of smooth likelihoods**, not the definition of maximum likelihood. The definition is "the $\theta$ that maximizes $L$", and here you get it by reading the function.
+
+Worth keeping: in your project the Model B likelihood **is** smooth in its parameter, and there the derivative does the work.
+
+# Bias, Variance, and MSE
+
+## Simulating both sampling distributions
+
+Take $\theta = 2$ and $n = 20$.
+
+```{r}
+k <- 10000; n <- 20; theta <- 2
+datasets <- replicate(k, runif(n, 0, theta), simplify = FALSE)
+mle <- map_dbl(datasets, max)
+mom <- map_dbl(datasets, ~ 2 * mean(.x))
+```
+
+Both estimators are applied to the **same** simulated datasets --- the *common random numbers* idea from the last video. Any difference we see is then the estimators differing, not the draws differing.
+
+## The two sampling distributions
+
+```{r echo=FALSE, fig.height = 2.0, out.width = "82%"}
+tibble(mle = mle, mom = mom) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(x = value, fill = name)) +
+  geom_density(alpha = 0.6) +
+  geom_vline(xintercept = theta, lty = 2) +
+  labs(x = expression(hat(theta)), fill = NULL)
+```
+
+Not even the same *shape*. The MLE is a maximum of numbers below $\theta$, so it is **always too small**. The method of moments is a sample mean, so the CLT makes it symmetric.
+
+## Bias
+
+The **error** is $\hat\theta - \theta$; the **bias** is the average error:
+$$\text{Bias}(\hat\theta) = \E{\hat \theta - \theta} = \E{\hat\theta} - \theta$$
+An estimator is **unbiased** when this is zero.
+
+An expectation, so we estimate it by averaging. And because it is a sample mean over the $k$ replications, `t.test` reports its Monte Carlo error for free.
+
+```{r}
+as.numeric(t.test(mle - theta)$conf.int)
+as.numeric(t.test(mom - theta)$conf.int)
+```
+
+## Unbiased is not the same as good
+
+```{r}
+c(var(mle), var(mom))
+```
+
+The **biased** estimator has about **one eighth** the variance of the unbiased one.
+
+So we cannot rank them on bias alone, and we cannot rank them on variance alone. We need one number that charges an estimator for both.
+
+## Mean squared error
+
+$$\text{MSE}(\hat \theta) = \E{(\hat \theta - \theta)^2}$$
+
+Add and subtract $\E{\hat\theta}$ inside the square:
+\[
+\begin{aligned}
+\E{(\hat\theta - \theta)^2}
+  &= \E{\left( \left[\hat\theta - \E{\hat\theta}\right] + \left[\E{\hat\theta} - \theta\right] \right)^2} \\
+  &= \Var{\hat\theta} + \text{Bias}(\hat\theta)^2 + 2\,\text{Bias}(\hat\theta)\,\E{\hat\theta - \E{\hat\theta}}
+\end{aligned}
+\]
+The last term is zero, because $\E{\hat\theta - \E{\hat\theta}} = 0$. So
+
+$$\textbf{MSE} = \textbf{variance} + \textbf{bias}^2$$
+
+For unbiased estimators, minimizing MSE *is* minimizing variance --- but that is a special case, not the general rule.
+
+## Estimating MSE
+
+One more expectation, so one more sample mean --- this time of the squared errors.
+
+```{r}
+as.numeric(t.test((mle - theta)^2)$conf.int)
+as.numeric(t.test((mom - theta)^2)$conf.int)
+```
+
+The **biased** estimator wins by a factor of more than three. Its small variance more than pays for its bias.
+
+## Checking the decomposition
+
+```{r}
+c(var(mle) + mean(mle - theta)^2, mean((mle - theta)^2))
+```
+
+The two agree to the printed precision, as they must.
+
+A good habit: whenever a simulation reports bias, variance and MSE, check that they add up. 
+
+## What the algebra predicts
+
+Both estimators can be worked out exactly, which gives us something to check the simulation against. For $\tilde\theta = 2\bar X$:
+$$\text{Bias} = 0, \qquad \Var{\tilde\theta} = \frac{4\,\Var{X}}{n} = \frac{\theta^2}{3n}$$
+
+For $\hat\theta = \max_i X_i$ the CDF is $P(\hat\theta \le t) = (t/\theta)^n$, giving density $n t^{n-1}/\theta^n$ and
+$$\E{\hat\theta} = \frac{n}{n+1}\theta
+ \implies \text{Bias} = -\frac{\theta}{n+1},
+\qquad \text{MSE} = \frac{2\theta^2}{(n+1)(n+2)}$$
+
+The MLE's bias shrinks like $1/n$ and its MSE like $1/n^2$ --- the $O(n^{-2})$ we are about to see in the table.
+
+## Checking the simulation against the algebra
+
+```{r echo=FALSE}
+ci <- function(v) as.numeric(t.test(v)$conf.int)
+exact <- c(`mle bias` = -theta/(n+1), `mom bias` = 0,
+           `mle mse` = 2*theta^2/((n+1)*(n+2)), `mom mse` = theta^2/(3*n))
+obs <- rbind(ci(mle - theta), ci(mom - theta),
+             ci((mle - theta)^2), ci((mom - theta)^2))
+f6 <- function(v) sprintf("%.6f", v)
+knitr::kable(data.frame(exact = f6(exact), lo = f6(obs[,1]), hi = f6(obs[,2]),
+                        covers = exact >= obs[,1] & exact <= obs[,2]),
+             align = "rrrl")
+```
+
+Three of the four intervals cover the exact value; the fourth **misses by six millionths**. That is not a bug --- a 95% interval is meant to miss one time in twenty, and we ran four.
+
+Check your simulation where you *can* do the algebra. It is the only place you can check it at all.
+
+## Does the ranking survive a change in $n$?
+
+```{r}
+compare <- function(n, k = 10000, theta = 2) {
+  d <- replicate(k, runif(n, 0, theta), simplify = FALSE)
+  est <- list(mle = map_dbl(d, max),
+              mom = map_dbl(d, ~ 2 * mean(.x)))
+  map_dfr(est, ~ tibble(bias = mean(.x - theta), var = var(.x),
+                        mse = mean((.x - theta)^2)),
+          .id = "estimator") %>%
+    mutate(n = n, .before = 1)
+}
+```
+
+## Three sample sizes
+
+```{r echo=FALSE}
+knitr::kable(map_dfr(c(5, 20, 80), compare), digits = 4)
+```
+
+Each step **quadruples** $n$.
+
+## Reading the table
+
+- Both MSEs fall as $n$ grows: more data helps both rules.
+- They do not fall at the **same rate**. Quadrupling $n$ divides the method-of-moments MSE by about 4 --- the $O(n^{-1})$ rate of any sample mean. It divides the MLE's by 12 to 14, heading for 16, because that MSE is $O(n^{-2})$.
+- So the MLE does not merely win --- **its lead widens with $n$**.
+
+Comparing two estimators at one sample size tells you about that sample size. Sweeping $n$ tells you which one you want as data gets cheaper.
+
+# When the Machinery Lies
+
+## A harder problem
+
+$X_1, \ldots, X_n \iid \text{Cauchy}(\theta)$, with density
+$$f(x) = \frac{1}{\pi} \frac{1}{1 + (x - \theta)^2}$$
+
+$\theta$ is the **median**. Two obvious rules for it:
+
+- the **sample median**, which matches the definition;
+- the **sample mean**, which is what we always reach for.
+
+The Cauchy has **no mean**: $\int |x| f(x)\,dx$ diverges. But $\bar X$ is a perfectly well-defined number for any finite sample, so nothing stops us computing it. Let us see what the simulation says.
+
+## Simulating
+
+```{r}
+k <- 10000; n <- 20; true_theta <- 10
+cdata <- replicate(k, rcauchy(n, location = true_theta),
+                   simplify = FALSE)
+cmed <- map_dbl(cdata, median)
+cmean <- map_dbl(cdata, mean)
+```
+
+```{r}
+range(cmed)
+range(cmean)
+```
+
+The median never strays far. The mean, over the same datasets, produced values thousands of units from a truth of 10.
+
+## The two sampling distributions
+
+```{r echo=FALSE, fig.height = 2.0, out.width = "82%"}
+tibble(median = cmed, mean = cmean) %>%
+  pivot_longer(everything()) %>%
+  ggplot(aes(x = value, fill = name)) +
+  geom_density(alpha = 0.6) + xlim(5, 15) +
+  labs(x = expression(hat(theta)), fill = NULL)
+```
+
+The mean's distribution has been **cropped** to fit the slide --- that is the point of the picture.
+
+## Why
+
+This is not bad luck. For $X_i \iid \text{Cauchy}(\theta)$ it is a theorem that
+$$\bar X \sim \text{Cauchy}(\theta) \quad \textbf{exactly, for every } n$$
+
+Averaging $n$ Cauchy draws hands you back a single Cauchy draw. **The sample mean of 10,000 observations is no better than one observation.** The usual intuition --- averaging cancels noise --- is a consequence of the CLT, and the CLT needs a finite variance.
+
+## What the machinery reports anyway
+
+```{r}
+mean(cmean - true_theta)
+mean((cmean - true_theta)^2)
+```
+
+Two finite numbers, printed without complaint. Both are **meaningless**: $\bar X$ is Cauchy, so $\E{\bar X}$ does not exist and $\E{(\bar X - \theta)^2} = \infty$.
+
+Run it again with a different seed and the second number changes by orders of magnitude.
+
+**Monte Carlo will not warn you.** It returns the average of what it sampled, and that average always exists.
+
+## The symptom you can see
+
+```{r echo=FALSE, fig.height = 2.0, out.width = "82%"}
+ks <- seq(100, k, by = 50)
+tibble(k = rep(ks, 2),
+       est = c(cumsum((cmean - true_theta)^2)[ks] / ks,
+               cumsum((cmed - true_theta)^2)[ks] / ks),
+       estimator = rep(c("mean", "median"), each = length(ks))) %>%
+  ggplot(aes(x = k, y = est, colour = estimator)) +
+  geom_line() + scale_y_log10() + labs(y = "running MSE estimate")
+```
+
+The median's estimate settles. The mean's jumps every time a new extreme value arrives and never settles --- the same picture as the infinite-variance estimator in session 1's exercises.
+
+## Introducing the trimmed mean
+
+The median works because it ignores the tails. The **trimmed mean** interpolates: discard the most extreme observations at each end, average the rest.
+
+```{r}
+ctrim <- map_dbl(cdata, mean, trim = 0.25)
+map_dbl(list(median = cmed, trimmed = ctrim),
+        ~ mean((.x - true_theta)^2))
+```
+
+Trimming a quarter from each end beats the median: it uses middle observations the median throws away, and still never lets an outlier in.
+
+There is no row for the mean --- not because it lost, but because **the quantity does not exist**.
+
+# Confidence Intervals and Coverage
+
+## A different kind of question
+
+A point estimate answers "what is $\theta$?" An interval answers "how sure are we?"
+
+A $(1-\alpha)$ **confidence interval** is a pair of statistics $(A, B)$, both computed from the data, with
+$$P(A \le \theta \le B) = 1 - \alpha$$
+
+The probability is over the **interval**, not over $\theta$: $\theta$ is a fixed unknown number, and the endpoints are what move from sample to sample.
+
+## CI for sample mean
+
+Recall the **central limit theorem** states $(\bar X_n - \E{X})/(\sigma/\sqrt{n})$ is approximately $N(0,1)$ in large samples so that
+
+$$P\left(-z_{\alpha/2} \;\le\; \frac{\bar X_n - \E{X}}{\sigma/\sqrt{n}} \;\le\; z_{\alpha/2}\right) \;\approx\; 1 - \alpha$$
+
+where $z_{\alpha/2}$ is the upper $\alpha/2$ quantile of $N(0,1)$, or `qnorm(1 - alpha/2)`. For $\alpha = 0.05$ that is the familiar $1.96$.
+
+Read what this says: a **ratio** we cannot compute (it contains $\E{X}$) falls between two numbers we can, with probability $1 - \alpha$.
+
+Now rearrange the event until it is a statement about $\E{X}$ instead.
+
+## Rearranging to surround $\E{X}$
+
+Multiply through by $\sigma/\sqrt{n}$, subtract $\bar X_n$, then multiply by $-1$ --- which reverses both inequalities:
+\[
+\begin{aligned}
+-z_{\alpha/2} \le \frac{\bar X_n - \E{X}}{\sigma/\sqrt{n}} \le z_{\alpha/2}
+ &\iff -z_{\alpha/2}\frac{\sigma}{\sqrt{n}} \le \bar X_n - \E{X} \le z_{\alpha/2}\frac{\sigma}{\sqrt{n}} \\[2pt]
+ &\iff \bar X_n - z_{\alpha/2}\frac{\sigma}{\sqrt{n}} \le \E{X} \le \bar X_n + z_{\alpha/2}\frac{\sigma}{\sqrt{n}}
+\end{aligned}
+\]
+
+Every step is an **equivalence**, so the probability never changed:
+$$P\Big(\; \underbrace{\bar X_n - z_{\alpha/2}\tfrac{\sigma}{\sqrt{n}}}_{A} \;\le\; \E{X} \;\le\; \underbrace{\bar X_n + z_{\alpha/2}\tfrac{\sigma}{\sqrt{n}}}_{B} \;\Big) \approx 1 - \alpha$$
+
+Exactly the $(A, B)$ from the previous slide. **Nothing moved but the algebra**: $\E{X}$ is still fixed, and the randomness is still $\bar X_n$ --- now in *both* endpoints.
+
+## We do not know $\sigma$
+
+$A$ and $B$ must be **statistics** --- computable from the data --- and $\sigma$ is not one. Replace it by the sample standard deviation $S$.
+
+This is not free. The ratio $(\bar X_n - \E{X})/(S/\sqrt{n})$ now has a random quantity in the denominator too, so it is no longer standard Normal: it has **heavier tails**, more so the smaller $n$ is. For Normal data it is exactly $t_{n-1}$, so we widen the interval with $t$ quantiles:
+$$\bar X_n \;\pm\; t_{\alpha/2}(n-1)\, \frac{S}{\sqrt{n}}$$
+
+This is the interval `t.test` reports.
+
+For **non-Normal** data we now approximate twice: once in the CLT, once in calling that ratio a $t$. Whether it still delivers $1 - \alpha$ is a question about a probability --- so simulation can settle it.
+
+## Coverage is a probability, so it is an expectation
+
+$$\text{coverage} = P(A \le \theta \le B) = \E{\ind(A \le \theta \le B)}$$
+
+```{r}
+covers <- function(x, truth) {
+  ci <- t.test(x)$conf.int
+  ci[1] <= truth && truth <= ci[2]
+}
+```
+
+The one new wrinkle: **we have to know the truth** to check coverage. That is what makes this a simulation rather than a data analysis --- we get to set the truth.
+
+## Coverage for skewed data
+
+$X_i \iid \text{Exp}(1)$, so the truth is $\E{X} = 1$. The CLT states that as $n$ gets large $X_n$ should be approximately normal, which can be used to create a confidence interval. How well does it work?
+
+```{r}
+k <- 10000
+map_dbl(set_names(c(5, 10, 30, 100)),
+        ~ mean(replicate(k, covers(rexp(.x), truth = 1))))
+```
+
+The nominal 95% interval does not deliver 95% at small $n$, and the shortfall closes only slowly. An interval that promises 95% and delivers 90% is **anti-conservative**: wrong twice as often as advertised.
+
+## Put an interval on the coverage
+
+The coverage estimate is a proportion out of $k$ independent trials, so it is Binomial and `binom.test` gives an exact interval.
+
+```{r}
+hits <- sum(replicate(k, covers(rexp(10), truth = 1)))
+as.numeric(binom.test(hits, k, conf.level = 0.99)$conf.int)
+```
+
+Entirely below 0.95, so the under-coverage at $n = 10$ is real and not simulation noise.
+
+Prefer `binom.test` to `t.test` whenever the thing you averaged was an **indicator**: it is exact for any $k$, it cannot return an endpoint below 0 or above 1, and it does not lean on the CLT.
+
+## Seeing it
+
+```{r echo=FALSE, fig.height = 2.0, out.width = "82%"}
+set.seed(11)
+map_dfr(1:100, function(i) {
+  ci <- t.test(rexp(10))$conf.int
+  tibble(i = i, lo = ci[1], hi = ci[2],
+         covers = ci[1] <= 1 && 1 <= ci[2])
+}) %>%
+  ggplot(aes(x = i, colour = covers)) +
+  geom_segment(aes(y = lo, yend = hi, xend = i)) +
+  geom_hline(yintercept = 1) +
+  labs(x = NULL, y = "95% CI for E(X)", colour = "covers")
+```
+
+The truth is a fixed line; the **intervals** are what jump around. The misses are nearly all below it --- a right-skewed sample usually understates its own spread.
+
+## Coverage is not the only thing
+
+Coverage alone is easy to achieve: the interval $(-\infty, \infty)$ has 100% coverage and says nothing.
+
+So report **width** alongside it.
+
+```{r}
+mean(replicate(1000, diff(t.test(rexp(10))$conf.int)))
+```
+
+One procedure beats another when it holds **at least the advertised coverage at a smaller expected width**. Either number alone is half an answer --- the same lesson as bias and variance, in a new costume.
+
+## Summary
+
+- An estimator is a random variable; its distribution is the **sampling distribution**. Simulate it by simulating whole **datasets**, each collapsed to one number.
+- **Bias**, **variance**, **MSE** and **coverage** are all expectations over that distribution, so all four use the same sample-mean recipe as video 1.
+- **MSE = variance + bias$^2$**, so a biased estimator can win --- for $U(0,\theta)$ it wins easily. Check MSE, and sweep $n$, since the ranking can depend on both.
+- Your simulation output is itself an estimate. Put a confidence interval on it: `t.test` for an average, `binom.test` for a proportion.
+- Run competing estimators on the **same** simulated datasets.
+- Monte Carlo prints a number whether or not the quantity exists. With heavy tails the number is noise --- watch the running estimate.
