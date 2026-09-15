@@ -1,0 +1,65 @@
+---
+title: "Monte Carlo Methods for Hypothesis Tests: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate --- Session 4"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+## Hypothes Tesing
+
+Goal: use a dataset to decide between two options possible states of the world.
+
+- $H_0$ (null) and $H_1$ (alternative) define two distributions (or classes of distributions)
+- A **test statistic** $T = T(X_1, \ldots, X_n)$: one number summarizing the evidence against the null.
+- A **rejection region** $\mathcal{R}$: the values of $T$ that make us reject.
+
+The decision is a Bernoulli random variable, so everything we want to know about the test is a **probability**.
+
+## Two ways to be wrong
+
+| | $H_0$ true | $H_1$ true |
+|---|---|---|
+| reject | **Type I error** ($\alpha$) | correct ($1 - \beta$, the **power**) |
+| do not reject | correct ($1 - \alpha$) | **Type II error** ($\beta$) |
+
+- You **set** $\alpha$. Fix the size you will tolerate, then take all the power you can get.
+- "Do not reject" is **not** "accept $H_0$" --- a test with no power fails to reject anything.
+
+## MC estimates of size and power
+
+$$\alpha = \E{\ind(T \in \mathcal{R}) \mid H_0}, \qquad
+\text{power}(\theta_1) = \E{\ind(T \in \mathcal{R}) \mid \theta_1}$$
+
+```{r eval=FALSE}
+null <- replicate(k, T(rmodel(n, theta_0)))
+alt <- replicate(k, T(rmodel(n, theta_1)))
+# plot to determine rejection region,
+# write function `is_in_R()` returns TRUE/FALSE
+mean(is_in_R(null)) # size
+mean(is_in_R(alt))  # the power
+```
+
+## $p$-values
+
+- One sided:
+$$\hat p = \frac{1 + \#\{T_b \ge t_{\text{obs}}\}}{B + 1} \qquad \texttt{mean(c(t\_obs, null\_dist) >= t\_obs)}$$
+
+- Two sided:
+$$\hat p = 2 \min\left\{ P(T \le t_{\text{obs}}), \; P(T \ge t_{\text{obs}}) \right\}, \text{ capped at } 1$$
+- More generally, order rejection regions largest to smallest, find $\alpha$ of first rejection region to include observed value.
+
+## Inverting a test gives an interval
+
+Hold the data fixed and ask which nulls survive:
+$$\text{CI}_{1-\alpha} = \{\theta_0 : \text{the level-}\alpha\text{ test of } H_0: \theta = \theta_0 \text{ does not reject}\}$$
+
+- One simulated null distribution **per candidate $\theta_0$** on a grid; keep the ones you cannot reject.
+- The proof is just the size of the test: if $\theta$ is the truth, the test rejects it with probability $\alpha$, so the set contains it with probability $1 - \alpha$.
+- **No pivot and no closed form required.** Any test you can simulate hands you a confidence interval.
