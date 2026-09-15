@@ -162,6 +162,7 @@ R has a naming convention for functions related to **distributions** based on **
 
 See `?Distributions` for a list of built in distributions with these functions.
 
+
 ## Monte Carlo: Special case
 
 Sometimes the quantity we want **is already an expectation**:
@@ -380,6 +381,7 @@ theta <- seq(0, 2 * pi, length.out = 400)
 lines(cos(theta), sin(theta), lwd = 2)
 ```
 
+
 ## Aside: big-O notation
 
 The CLT says the Monte Carlo error shrinks like $1/\sqrt{n}$. Is that fast?
@@ -412,6 +414,7 @@ $$h(x) = h(m) + h'(m)(x - m) + \tfrac{1}{2} h''(\xi) (x - m)^2$$
 - Summing over the $(b - a)/d$ cells: total error $\approx (b - a) \, \overline{h''} \, d^2 / 24 = O(d^2)$.
 - With $n$ points, $d = (b - a)/n$, so the error is $O(n^{-2})$.
 - In $k$ dimensions, $n$ points make the cells $d \propto n^{-1/k}$ wide: error $= O(d^2) = O(n^{-2/k})$.
+
 
 ## Comparison using larger samples, more grid points.
 
@@ -473,6 +476,7 @@ legend("bottomright", c("grid (midpoint rule)", "Monte Carlo (one run)", "Monte 
        pch = c(1, 16, NA), lty = c(2, NA, 1), col = c("black", "red", "red"), bty = "n", cex = 0.8)
 ```
 
+
 <!--
 ## The arithmetic at $k = 20$
 
@@ -497,6 +501,7 @@ mean(rowSums(abs(zs) <= 1) == k)
 
 A ten-dimensional integral, one million draws, three matching digits.
 -->
+
 
 ## Monte Carlo Integration: Summary
 

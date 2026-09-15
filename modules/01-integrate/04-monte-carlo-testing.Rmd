@@ -124,6 +124,7 @@ Nothing forces $\mathcal{R}$ into the upper tail. Could be both tails or somethi
 
 There may be more than a single distribution for each hypothesis (**composite hypotheses**) requiring more plots.
 
+
 ## Uniform with unknown maximum
 
 Keep the setting from last video: $X_1, \ldots, X_n \iid U(0, \theta)$, $n = 20$.
@@ -184,6 +185,7 @@ c(mle = mean(map_dbl(alt, max) > c_mle),
 
 At the same size, the MLE test rejects a false null about four times as often.
 
+
 ## Power curves
 
 One alternative is a single number. Usually we want power as a function of the alternative.
@@ -210,6 +212,7 @@ ggplot(pc, aes(x = theta, y = power, colour = test)) +
   geom_hline(yintercept = c(0.05, 0.8), lty = 3) +
   labs(x = expression(theta), y = "power")
 ```
+
 
 ## Reading the power curves
 
@@ -278,6 +281,7 @@ So you can work either way, and which you choose is a matter of what you want to
 - The **region** is what you build when the size is fixed in advance and you run the test many times --- a power study needs a yes/no on every replication.
 - The **$p$-value** is what you report from a single analysis: it keeps information the yes/no throws away.
 
+
 # Two-Sided Tests
 
 ## When the alternative can go either way
@@ -331,6 +335,7 @@ So far: fix $\theta_0$, ask whether to reject. **Turn it around.** Hold the data
 $$\text{CI}_{1-\alpha} = \{\theta_0 : \text{the level-}\alpha \text{ test of } H_0: \theta = \theta_0 \text{ does not reject}\}$$
 
 That set is a $1 - \alpha$ confidence interval, and it needs no proof beyond the size of the test: if $\theta$ is the truth, the test rejects it with probability $\alpha$, so the set contains it with probability $1 - \alpha$.
+
 
 ## Inverting on a grid
 

@@ -249,6 +249,7 @@ What about situations where we **don't want to assume a population distribution?
 
 Idea: Instead of writing down a CDF $F$, what if we estimated it? 
 
+
 ## What distribution is this?
 
 Systolic and diastolic blood pressure, NHANES 2013--14.
@@ -338,6 +339,7 @@ ggplot(data.frame(r = boot_r), aes(x = r)) +
   labs(x = "bootstrap correlation", y = NULL)
 ```
 
+
 # Module 4: Fit
 
 ## Only the maximum survives
@@ -396,6 +398,7 @@ $$\sum_{j=1}^{m} \frac{M_j - \mu}{\sigma^2}
 
 $\mu$ is stuck inside $\Phi$, which is itself an integral with no closed form.
 **You cannot solve this for $\mu$.**
+
 
 ## What we would do with the full data
 
@@ -496,6 +499,7 @@ likelihood of the data **we observed**:
 EM lands on the MLE, exactly. The gap from 3 is **sampling error in 200
 maxima**, not a flaw in the algorithm. With more groups the MLE moves toward 3.
 
+
 # Course Logistics
 
 ## People
@@ -576,12 +580,14 @@ Each module counts for 25% of your grade. Within each module:
 
 Remember: you will be asked about project details. Be prepared to explain coding details, even if you used AI to assist.
 
+
 ## Other Policies
 
 - Course Recordings
 - Disability Statement
 - Mental Health and Well-Being
 - Sexual Misconduct Policy
+
 
 ## Tour of Canvas
 
@@ -591,4 +597,5 @@ Remember: you will be asked about project details. Be prepared to explain coding
 - Video: statistical review
 - Class period: Introduction to R and RMarkdown
 - All students: install R and RStudio on laptops, directions on Canvas
+
 

@@ -412,6 +412,7 @@ For **non-Normal** data we now approximate twice: once in the CLT, once in calli
 
 $$\text{coverage} = P(A \le \theta \le B) = \E{\ind(A \le \theta \le B)}$$
 
+
 ```{r}
 covers <- function(x, truth) {
   ci <- t.test(x)$conf.int
