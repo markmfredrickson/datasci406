@@ -5,6 +5,7 @@ my-work/
 # course file it wanted to update.
 .sync-state
 *.new
+*.bak*
 
 # R / RStudio
 .Rproj.user/
