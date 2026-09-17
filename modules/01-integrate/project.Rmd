@@ -58,7 +58,7 @@ Reminder: this document will be used on the exam. For any question make sure to 
 
 # Part A: Monte Carlo integration
 
-### A.1
+## A.1
 
 Let $B$ be any random variable with CDF $F_B$ and density $f_B$, and let
 $X = 50 B$. **Prove** that
@@ -68,7 +68,7 @@ f_X(x) = \frac{1}{50} f_B(x / 50).$$
 Then **compute** the exact $F(20) = P(X \le 20)$ using `pbeta`.
 We will treat this as the exact value for the rest of the project.
 
-### A.2
+## A.2
 
 Now estimate the same quantity by Monte Carlo, pretending A.1 were not
 available:
@@ -77,7 +77,7 @@ $$F(20) = \int_0^{20} f(x) \, dx = \E{20 f(V)}, \quad V \sim U(0, 20).$$
 Use 10,000 uniform draws. Report the estimate and a 95\% confidence
 interval from `t.test`.
 
-### A.3
+## A.3
 
 Estimate the model's mean perch length,
 $$\E{X} = \int_0^{50} x f(x) \, dx,$$
@@ -91,12 +91,12 @@ integrate(function(x) x * fmod(x), 0, 50)
 The model is symmetric about 25, so $\E{X}$ is also available exactly in one
 line. Give it, and set all three numbers side by side.
 
-### A.4
+## A.4
 
 Compare model to data: report the exact model probability $F(20)$ from A.1
 next to the observed fraction of the 56 perch with `length1` $\le 20$.
 
-### A.5
+## A.5
 
 A joint quantity: two perch are caught independently, both following Model
 B. Estimate the probability their **combined** length exceeds 70 cm,
@@ -110,7 +110,7 @@ will check this answer in Part C.
 
 # Part B: variance reduction
 
-### B.1
+## B.1
 
 Antithetic variables for the A.2 estimator. The model has its mode at 25, so
 on $[0, 20]$ the density $f$ is strictly increasing (show this with a plot
@@ -122,7 +122,7 @@ antithetic partners $20 - V_i$ (10,000 function evaluations total, same as
 A.2). Report the estimate, the estimated variance of this estimator and of
 the A.2 estimator, and the percent variance reduction.
 
-### B.2
+## B.2
 
 Importance sampling for $\E{X}$. The $U(0, 50)$ envelope in A.3 ignores
 where $x f(x)$ puts its mass. Consider envelopes of the form $Y = 50 B'$
@@ -150,7 +150,7 @@ every weighted value $y \, f(y) / g(y)$ is the same number. Find it (the
 mode-matching hint leads straight there), and verify by printing the
 `range()` of your weighted values. Compare session exercise 3(e).
 
-### B.3
+## B.3
 
 Using the estimated variance of your best **non-perfect** envelope from
 B.2, compute the number of draws needed for a 95\% confidence interval for
@@ -171,7 +171,7 @@ upper limit $\theta = 50$ fixed and keep the symmetry, so the model has a
 $$X = 50 B, \qquad B \sim \text{Beta}(a, a).$$
 Our working model is the case $a = 4$.
 
-### C.1
+## C.1
 
 **Method of moments.** Using
 $\Var{B} = \frac{\alpha\beta}{(\alpha+\beta)^2(\alpha+\beta+1)}$, show that
@@ -184,7 +184,7 @@ Note there is no second equation to solve: $\E{X} = 25$ for every $a$, so
 the mean carries no information about the parameter and the variance has to
 do all the work.
 
-### C.2
+## C.2
 
 **Maximum likelihood.** Here the beta function finally earns its keep.
 Setting $\alpha = \beta = a$ in the density from the setting,
@@ -203,7 +203,7 @@ here you may differentiate. Either solve $\ell'(a) = 0$ numerically with
 `digamma()` in R), or maximize $\ell$ directly with `optimize`. Report
 $\hat a$ and compare it with $\tilde a$ from C.1.
 
-### C.3
+## C.3
 
 Now pretend we do not know $F(20)$ and must estimate it from a sample of
 $n = 56$. Two estimators:
@@ -217,12 +217,12 @@ of size 56 from the model ($a = 4$). Using the exact $F(20)$ from A.1,
 estimate the **bias** and **MSE** of each, with a 99\% confidence interval,
 and show a side-by-side boxplot.
 
-### C.4
+## C.4
 
 Repeat the comparison at $n = 14$ and $n = 224$. Present bias, variance,
 and MSE for both estimators at all three sample sizes in one table.
 
-### C.5
+## C.5
 
 The $t$ confidence interval is exact only for Normal data, and the model is
 not Normal. Estimate its true coverage: simulate 10,000 samples of size 56
@@ -251,7 +251,7 @@ Two statistics:
 
 Neither has a usable table here, which is why we simulate.
 
-### D.1
+## D.1
 
 Simulate the null distribution of each statistic: 10,000 samples of size 56
 from the model with $a = 4$.
@@ -261,13 +261,13 @@ rejecting when $T_S$ falls below the 2.5\% quantile or above the 97.5\%
 quantile. $T_K$ is a distance, so reject only above its 95\% quantile.
 Report all three cutoffs.
 
-### D.2
+## D.2
 
 With **fresh** simulations under $H_0$ (10,000 new replications), estimate
 the empirical Type I error rate of each region, each with a `binom.test`
 confidence interval.
 
-### D.3
+## D.3
 
 Power curves. For each $a \in \{2, 2.5, 3, 3.5, \ldots, 8\}$, simulate
 1,500 samples of size 56 from $50 \cdot \text{Beta}(a, a)$ and estimate the
@@ -276,7 +276,7 @@ power of both tests, using the cutoffs from D.1.
 Plot the two power curves on one set of axes, with horizontal reference
 lines at $0.05$ and $0.80$.
 
-### D.4
+## D.4
 
 **(a)** Test $H_0: a = 4$ on the 56 perch lengths using $T_S$. Report the
 observed $S^2$, its $p$-value in the $(1 + \#)/(B + 1)$ form, and whether
@@ -293,3 +293,4 @@ candidate $a_0$ on a grid from $1.5$ to $8$ in steps of $0.1$:
 The kept values form a 95\% confidence interval for $a$. Report its
 endpoints, and plot the grid against the $p$-value with $\tilde a$ from C.1
 and the working value $a = 4$ marked.
+
