@@ -12,7 +12,7 @@ output:
 classoption: "aspectratio=169"
 ---
 
-## Hypothes Tesing
+## Hypothesis Testing
 
 Goal: use a dataset to decide between two options possible states of the world.
 
@@ -57,9 +57,8 @@ $$\hat p = 2 \min\left\{ P(T \le t_{\text{obs}}), \; P(T \ge t_{\text{obs}}) \ri
 
 ## Inverting a test gives an interval
 
-Hold the data fixed and ask which nulls survive:
+Hold the data fixed and ask which hypotheses not rejected:
 $$\text{CI}_{1-\alpha} = \{\theta_0 : \text{the level-}\alpha\text{ test of } H_0: \theta = \theta_0 \text{ does not reject}\}$$
 
 - One simulated null distribution **per candidate $\theta_0$** on a grid; keep the ones you cannot reject.
 - The proof is just the size of the test: if $\theta$ is the truth, the test rejects it with probability $\alpha$, so the set contains it with probability $1 - \alpha$.
-- **No pivot and no closed form required.** Any test you can simulate hands you a confidence interval.
