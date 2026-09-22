@@ -1,0 +1,50 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 1.5**
+
+**Name and Uniqname:**
+
+# Question 1 (4 points)
+
+Using today's exercises, identify an example of each of these techniques we
+have covered in this module.
+
+**(a)** Estimating a feature of a distribution (such as an expectation or
+probability) for which you do not have a closed form answer.
+
+\vspace{0.85in}
+
+**(b)** Finding the operating characteristic of an estimator or testing
+procedure.
+
+\vspace{0.85in}
+
+**(c)** Approximating the sampling distribution of a statistic that has no
+tractable form.
+
+\vspace{0.85in}
+
+**(d)** Investigating a claim you have no formal proof of.
+
+\vspace{0.85in}
+
+# Question 2 (1 point)
+
+The paper's conclusion mentions tests built on the **second** digit rather
+than the first. To run today's test that way you would need the distribution
+of the second digit under the null.
+
+Assume Benford's Law still holds --- that is, $F \sim U(0,1)$. Explain how you
+would use a Monte Carlo technique to estimate the probability of second
+digits $d_2 = 0, \ldots, 9$. You may assume a function `second_digit()`
+exists already.
+
+\vspace{1.6in}
+

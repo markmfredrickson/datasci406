@@ -1,0 +1,85 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 1.5**
+
+**Name and Uniqname:**
+
+# Question 1 (4 points)
+
+Using today's exercises, identify an example of each of these techniques we
+have covered in this module.
+
+**(a)** Estimating a feature of a distribution (such as an expectation or
+probability) for which you do not have a closed form answer.
+
+<!-- answer-space: 0.85in -->
+
+**(b)** Finding the operating characteristic of an estimator or testing
+procedure.
+
+<!-- answer-space: 0.85in -->
+
+**(c)** Approximating the sampling distribution of a statistic that has no
+tractable form.
+
+<!-- answer-space: 0.85in -->
+
+**(d)** Investigating a claim you have no formal proof of.
+
+<!-- answer-space: 0.85in -->
+
+### Solution
+
+**(a)** The $p$-value.
+
+**(b)** The power against `p_alt`, or the size check returning about 0.05.
+
+**(c)** The 4,000 simulated distance statistics --- the null distribution.
+
+**(d)** That $F$ becomes uniform as $k$ grows, or that $F \sim U(0,1)$ gives
+digits at $w_d$.
+
+**Rubric.** 1 pt each, generously. Any exercise fitting the description
+counts, and one exercise may serve more than one part --- the null simulation
+is a fair answer to both (a) and (c).
+
+# Question 2 (1 point)
+
+The paper's conclusion mentions tests built on the **second** digit rather
+than the first. To run today's test that way you would need the distribution
+of the second digit under the null.
+
+Assume Benford's Law still holds --- that is, $F \sim U(0,1)$. Explain how you
+would use a Monte Carlo technique to estimate the probability of second
+digits $d_2 = 0, \ldots, 9$. You may assume a function `second_digit()`
+exists already.
+
+<!-- answer-space: 1.6in -->
+
+### Solution
+
+The generation exercise, reading a different digit. Draw $F \sim U(0,1)$, set
+$X = 10^F$, and tabulate the second digit:
+
+```{r echo = TRUE, eval = FALSE}
+x <- 10^runif(n)
+table(factor(second_digit(x), levels = 0:9)) / n
+```
+
+At $n = 10^6$: 0.120, 0.114, 0.109, 0.104, 0.100, 0.097, 0.093, 0.090, 0.087,
+0.085 --- ten cells now, and much flatter than $w_d$.
+
+$M$ can be dropped entirely. It moves the decimal point and changes no digit,
+which is why the leading digit depended only on $F$ in the first place. And
+no new theory is needed: assuming $F$ uniform already fixes every digit, not
+just the first.
+
+**Rubric.** 1 pt for simulating $F \sim U(0,1)$ and reading the second digit.
+Keeping $M$ is fine. No credit for "look up the second-digit law."
