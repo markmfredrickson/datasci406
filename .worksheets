@@ -2,3 +2,4 @@ modules/00-introduction-review/02-r-basics-exercises.Rmd
 modules/01-integrate/01-monte-carlo-integration-exercises.Rmd
 modules/01-integrate/02-variance-reduction-exercises.Rmd
 modules/01-integrate/project.Rmd
+modules/01-integrate/05-benfords-law-exercises.Rmd
