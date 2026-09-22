@@ -66,15 +66,12 @@ exists already.
 ### Solution
 
 The generation exercise, reading a different digit. Draw $F \sim U(0,1)$, set
-$X = 10^F$, and tabulate the second digit:
+$X = 10^F$, and tabulate the second digit. Code might look like this:
 
 ```{r echo = TRUE, eval = FALSE}
 x <- 10^runif(n)
 table(factor(second_digit(x), levels = 0:9)) / n
-```
-
-At $n = 10^6$: 0.120, 0.114, 0.109, 0.104, 0.100, 0.097, 0.093, 0.090, 0.087,
-0.085 --- ten cells now, and much flatter than $w_d$.
+``` 
 
 $M$ can be dropped entirely. It moves the decimal point and changes no digit,
 which is why the leading digit depended only on $F$ in the first place. And
