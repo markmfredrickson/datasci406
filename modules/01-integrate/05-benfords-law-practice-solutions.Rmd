@@ -1,4 +1,5 @@
 ---
+pagetitle: "Module 1 Mock Exam"
 output:
   pdf_document: default
 ---

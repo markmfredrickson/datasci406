@@ -1,4 +1,5 @@
 ---
+pagetitle: "Quiz 1.5: Benford's Law"
 output:
   pdf_document: default
 ---
