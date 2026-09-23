@@ -29,7 +29,7 @@ not obey it.
 
 # Leading Digits
 
-Let $x$ be any real number with $x > 1$ and write:
+Let $x$ be any real number with $x \ge 1$ and write:
 
 $$x = 10^{m + f}$$
 
@@ -55,7 +55,7 @@ $$D(x) = \left\lfloor \frac{x}{10^{m}} \right\rfloor,
 \qquad m = \lfloor \log_{10} x \rfloor.$$
 
 
-## Exercise --- Computing the first digit
+## Exercise 1 --- Computing the first digit
 
 Write `first_digit(x)` using the second form. The floor operator is `floor()`.
 
@@ -94,7 +94,7 @@ $$I_d = \left[\, \log_{10} d, \; \log_{10}(d+1) \,\right) \qquad d = 1, \ldots, 
 
 A distribution over leading digits is therefore a distribution over the intervals $I_d$. To generate random numbers for this distribution, imagine picking an interval $I_d$, then picking an $F$ within that interval. Select $M$ following some other method and $X = 10^M 10^F$.
 
-## Exercise
+## Exercise 2 --- Uniform leading digits
 
 Generate 10,000 draws this way: choose one of the nine intervals $I_d$
 uniformly, choose $F$ uniformly within it, choose $M \sim \text{Poisson}(2)$,
@@ -133,7 +133,7 @@ round(log10((2:10) / (1:9)), 3)
 
 Benford's Law states that the probability of selecting $F$ to be in $I_d$ is equal to $w_d$. A sufficient condition to be true is when $F$ is uniform on (0,1)
 
-## Exercise
+## Exercise 3 --- Benford leading digits
 
 Repeat the previous exercise using $F \sim U(0,1)$
 
@@ -165,7 +165,7 @@ Writing $X = \prod_{i=1}^k V_i$ we can see that any
 quantity built by multiplying many IID factors together has Benford leading
 digits.
 
-## Exercise
+## Exercise 4 --- Products of $k$ factors
 
 Let $Y_i \sim \text{Exp}(10)$, so every $V_i = 10^{Y_i}$ is at least 1, and
 let $X = \prod_{i=1}^k V_i$. For $k \in \{1, 5, 25, 100\}$ simulate 100,000
@@ -195,18 +195,29 @@ tibble(k = rep(ks, each = n), F = unlist(f_n)) |>
 ```
 
 ```{r}
-tab <- map_dfr(x_n, function(s) table(factor(first_digit(10^s), levels = 1:9)) / n) 
-tab <- cbind(k = ks, tab)
+props <- function(s) {
+  set_names(as.numeric(table(factor(first_digit(s), levels = 1:9))) / n, 1:9)
+}
 
-knitr::kable(rbind(tab, w_d = log10((2:10) / (1:9))), digits = 3)
+tab <- map_dfr(x_n, props) |>
+  bind_rows(set_names(log10((2:10) / (1:9)), 1:9)) |>
+  mutate(k = c(paste0("k = ", ks), "w_d"), .before = 1)
+
+knitr::kable(tab, digits = 3)
 ```
 
 At $k = 1$ almost everything starts with a 1 and $F$ is nowhere near flat. By
-$k = 25$ the histogram of $F$ is level and the digits match $w_d$; $k = 100$
-adds nothing.
+$k = 25$ the histogram of $F$ looks level and the digits are close to $w_d$ ---
+though digit 1 is still 0.309 against 0.301, an excess of about five Monte
+Carlo standard errors at $n = 100{,}000$, so the approximation has not quite
+arrived. At $k = 100$ they agree to within 0.001, about one standard error.
 
-The standard deviation of the sum is $\sqrt{k}/10$, so $k = 25$ is half a
-decade of spread.
+The standard deviation of $\sum_i \log_{10} V_i$ is $\sqrt{k}/10$, since
+$\text{Exp}(10)$ has standard deviation $0.1$. So $k = 25$ is half a decade of
+spread and $k = 100$ is a full decade --- that is the answer to how large $k$
+has to be.
+
+
 
 # A test on real data
 
@@ -229,7 +240,19 @@ They disagree, most visibly at 9: 14.1% against an expected 4.6%. Is that
 surprising, or is it what random data looks like?
 
 Instead of $\chi^2$, use the Euclidean distance between the observed and
-expected digit distributions, $m = \sqrt{\sum_d (\hat p_d - p_d)^2}$.
+expected digit distributions,
+
+$$T = \sqrt{\sum_d \left(\hat p_d - p_d\right)^2}.$$
+
+We write it $T$ because it is going to be a test statistic --- and because $m$
+is already taken, by the integer exponent in the opening derivation.
+
+This is the paper's own statistic. Tam Cho and Gaines report it divided by the
+largest distance attainable --- all mass on digit 9, which gives 1.036 --- and
+call that $d^*$. So the 0.131 in their Table 1 for 2004 is the $T$ you are
+about to compute, rescaled. They chose a distance precisely *because* it is not
+tied to a hypothesis test and does not move with sample size; Exercises 6 and 7
+then build a $p$-value and a power curve on it.
 
 These do the bookkeeping. The only piece left to write is `distance()`.
 
@@ -240,9 +263,9 @@ rbenford <- function(n) sample(1:9, n, prob = dbenford(1:9), replace = TRUE)
 tstat <- function(d) distance(digit_props(d))
 ```
 
-## Exercise --- The observed statistic
+## Exercise 5 --- The observed statistic
 
-Write `distance(v)`, taking nine proportions and returning $m$. Compute the
+Write `distance(v)`, taking nine proportions and returning $T$. Compute the
 observed value for `pol_digits`.
 
 ### Solution
@@ -252,7 +275,7 @@ distance <- function(v) sqrt(sum((v - dbenford(1:9))^2))
 (observed <- distance(pol_digits))
 ```
 
-## Exercise --- The null distribution and the $p$-value
+## Exercise 6 --- The null distribution and the $p$-value
 
 Under $H_0$ the 8,396 digits are iid draws from the Benford distribution.
 Simulate the null with `B = 4000` replicates, plot it with the observed value
@@ -270,7 +293,7 @@ null <- replicate(B, tstat(rbenford(8396)))
 c(mean = mean(null), max = max(null), observed = observed)
 (1 + sum(null >= observed)) / (B + 1)
 
-ggplot(tibble(m = null), aes(x = m)) + geom_histogram(bins = 40) +
+ggplot(tibble(stat = null), aes(x = stat)) + geom_histogram(bins = 40) +
   geom_vline(xintercept = observed, colour = "red") +
   coord_cartesian(xlim = c(0, 0.15)) + labs(x = "distance", y = NULL)
 ```
@@ -282,7 +305,7 @@ smallest value $B = 4000$ can return, whatever the data. Report
 $p < 0.00025$ and state $B$. A smaller number takes a larger $B$, not
 different data.
 
-## Exercise --- Power against a flatter alternative
+## Exercise 7 --- Power against a flatter alternative
 
 Suppose the truth is not Benford but something more uniform --- halfway
 between the two:

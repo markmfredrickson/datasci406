@@ -1,0 +1,463 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+**DATASCI 406 FA 26 --- Module 1 Mock Exam**
+
+**Name and Uniqname:**
+
+This practice exam asks about the Day 5 Benford's Law exercises. The real exam
+asks the same kinds of question about your project, so work this one with your
+worked exercises in front of you --- every question points at code you have
+already run, though a few ask you to think past what you ran. Exercise numbers
+refer to the session exercise document.
+
+No question asks you to copy a number out of your output. They ask why you did
+it that way, what would happen if you changed it, and where in the exercises a
+given technique appears.
+
+**50 points. Budget about 62 minutes.**
+
+\medskip
+\hrule
+
+# Part A --- Monte Carlo integration (10 points)
+
+## A1 (2 points)
+
+In the exercise that draws $F$ uniformly on $(0,1)$, you simulated 10,000
+values of $X$ and reported the proportion carrying each leading digit. The
+proportion for $d = 9$ came out about $0.049$, against $w_9 = 0.046$. You want
+a confidence interval for that $0.049$. **Circle one.**
+
+1. A binomial interval on the count of nines among the 10,000 draws.
+1. A $t$ interval across the nine proportions in the table.
+1. None is needed --- $w_9$ is exact, so the $0.049$ carries no error.
+1. A binomial interval on the count of nines out of 9.
+
+### Solution
+
+**Answer: 1.** The entry is the mean of $\ind(D_i = 9)$ over $n = 10{,}000$
+independent draws --- a binomial proportion out of $n$.
+
+2 averages nine dependent numbers that sum to 1. 3 confuses the exact target
+with the simulation of it --- $w_9$ is exact, the $0.049$ is not. 4 uses the
+number of digits as the number of trials.
+
+## A2 (2 points)
+
+Your table of digit proportions came from 10,000 draws, and its entries are
+good to about two decimal places. You want a third. Roughly how many draws?
+**Circle one.**
+
+1. 20,000
+1. 100,000
+1. 1,000,000
+1. No number of draws will do it; the third decimal is beyond Monte Carlo.
+
+### Solution
+
+**Answer: 3.** The error falls like $n^{-1/2}$, so a tenfold gain in precision
+costs a hundredfold in draws. At $n = 10^4$ the standard error on a proportion
+near 0.3 is 0.0046; at $n = 10^6$ it is 0.00046.
+
+This rate is the one thing about Monte Carlo we cannot negotiate --- variance
+reduction buys a better constant, never a better exponent. 4 confuses a slow
+rate with a floor.
+
+## A3 (6 points)
+
+You built two samplers for $X = 10^{M + F}$. The first picks one of the nine
+intervals $I_d$ uniformly and then $F$ uniformly within it; the second takes
+$F \sim U(0,1)$ directly. Both draw $M \sim \text{Poisson}(2)$.
+
+**(i)** What changes in the table of digit proportions if $M$ is drawn from
+$\text{Poisson}(50)$ instead, or dropped entirely so that $X = 10^{F}$? Why?
+
+<!-- answer-space: 1.3in -->
+
+**(ii)** The first sampler gives uniform digits and the second gives Benford
+digits. Name the single probabilistic difference responsible, stated in terms
+of the intervals $I_d$.
+
+<!-- answer-space: 1.3in -->
+
+**(iii)** $P(D = d)$ has the closed form $w_d$. So what is the second
+simulation *for*? Say what agreement between the table and $w_d$ establishes,
+and what a disagreement would mean.
+
+<!-- answer-space: 1.6in -->
+
+### Solution
+
+**(i)** Nothing. $M$ is an integer, so $10^M$ only moves the decimal point;
+the leading digit depends on $F$ alone.
+
+**(ii)** Which interval gets chosen. The first gives every $I_d$ probability
+$1/9$; the second gives it $w_d$, its width.
+
+**(iii)** It checks the code and the claim $P(F \in I_d) = w_d$ against an
+answer already known. A gap beyond Monte Carlo error means one of the two is
+wrong, but not which.
+
+**Rubric.** 2 pts each. (ii) needs the probability assigned to $I_d$, not the
+widths --- both samplers use the same unequal widths.
+
+# Part B --- variance reduction (10 points)
+
+## B1 (2 points)
+
+To estimate $P(D = 1) = \log_{10} 2$ you draw $F \sim U(0,1)$ and average
+$\ind(F < \log_{10} 2)$. A classmate proposes antithetic pairs $(F, 1 - F)$,
+averaging within each pair. **Circle one.**
+
+1. Invalid --- the two draws in a pair are not independent.
+1. Valid, and it cuts the variance by about 43% at a matched budget.
+1. Valid, but it can never help when the quantity averaged is an indicator.
+1. Valid, and it cuts the variance by about the same amount for every digit
+   $d$.
+
+### Solution
+
+**Answer: 2.** The indicator is monotone in $F$, so the pair is negatively
+correlated: $F$ and $1 - F$ cannot both fall below $\log_{10} 2$, giving
+$\rho = -p/(1-p) = -0.43$. The reduction at matched budget is $-\rho$.
+
+1 mistakes the mechanism for a flaw --- pairs are still iid. 4 fails at
+$d = 9$, where $p = 0.046$ and the reduction is 5%.
+
+## B2 (2 points)
+
+You try the antithetic pairing $(F, 1 - F)$ for every digit in turn. For one of
+them it makes the variance *worse*. Which, and why? **Circle one.**
+
+1. $d = 1$, because $I_1$ is the widest interval.
+1. $d = 3$, because $I_3$ is the interval containing $0.5$.
+1. $d = 9$, because $I_9$ is the narrowest interval.
+1. None; the pairing can never do worse than independent draws.
+
+### Solution
+
+**Answer: 2.** $I_3 = [0.477, 0.602)$ is the one interval straddling $0.5$, so
+$F$ and $1 - F$ can both land in it. The two indicators are then *positively*
+correlated --- $\rho = +0.276$, making the variance 28% worse than independent
+draws at the same budget.
+
+Every other digit's interval is disjoint from its own reflection, so both
+indicators cannot fire at once and $\rho = -p/(1-p) < 0$: a large help at
+$d = 1$, a small one elsewhere. 4 is the tempting general claim and it is
+false; antithetic sampling is only guaranteed not to hurt when $h$ is monotone.
+
+## B3 (6 points)
+
+**(i)** Exercise 6 used $B = 4000$ and returned $p = 1/4001 \approx 0.00025$,
+with no null draw anywhere near the observed distance. A classmate wants to
+report $p = 10^{-5}$ instead. What would they have to change, and by how much?
+Would more FEC contributions let them report a smaller number?
+
+<!-- answer-space: 1.4in -->
+
+**(ii)** The power exercise reported $0.379$ at $n = 50$, from 1,000
+replicates. Give the Monte Carlo standard error of that number, and say how
+many replicates would halve it.
+
+<!-- answer-space: 1.3in -->
+
+**(iii)** That exercise spends its budget twice: one batch of replicates to
+set the critical value, then a fresh batch from the alternative to estimate the
+power. If you could afford 1,000 replicates *in total*, how would you split
+them? Say what goes wrong at each extreme.
+
+<!-- answer-space: 1.6in -->
+
+### Solution
+
+**(i)** Raise $B$: $1/(B+1) \le 10^{-5}$ needs $B \ge 99{,}999$. More
+contributions would not let them report a smaller number --- the floor is set
+by $B$ alone. They would be stronger *evidence*, but $n$ is fixed at 8,396
+either way.
+
+**(ii)** $\sqrt{0.379 \times 0.621 / 1000} = 0.015$. Halving it takes four
+times the replicates, 4,000.
+
+**(iii)** Roughly even. All on the cutoff leaves no power estimate; all on the
+alternative leaves a cutoff from too few null draws. An error in the cutoff
+shifts every one of the power comparisons the same way, so it acts as bias
+rather than noise.
+
+**Rubric.** 2 pts each. (iii) is graded on the bias-versus-noise asymmetry,
+not on the split --- a student who argues from it for weighting the null batch
+has given the better answer and earns full credit.
+
+# Part C --- Monte Carlo for estimation (10 points)
+
+## C1 (2 points)
+
+The products exercise simulated 100,000 values of $X = \prod_{i=1}^k V_i$ for
+$k \in \{1, 5, 25, 100\}$. You want the leading digits in the table to sit
+closer to $w_d$. **Circle one.**
+
+1. Raise the number of simulated values.
+1. Raise $k$.
+1. Either one; both shrink the gap between the table and $w_d$.
+1. Neither; the gap is fixed by the choice of $\text{Exp}(10)$ and cannot be
+   changed.
+
+### Solution
+
+**Answer: 2.** $k$ is a feature of the thing simulated --- the true digit
+distribution moves toward Benford as $k$ grows. The replicate count is the
+simulation budget, fixing how precisely the table estimates whatever is true at
+that $k$.
+
+At $k = 1$ the truth is 0.951, and $10^9$ replicates would report 0.951
+precisely.
+
+## C2 (2 points)
+
+Exercise 6 simulates the null distribution with 4,000 replicates. What is *one
+replicate*? **Circle one.**
+
+1. One simulated leading digit.
+1. One of the nine simulated digit proportions.
+1. A whole simulated dataset of 8,396 digits, reduced to a single distance.
+1. The observed FEC data, resampled.
+
+### Solution
+
+**Answer: 3.** The statistic is a function of an entire dataset, so producing
+one draw from its sampling distribution means generating a dataset the size of
+the real one and summarizing it. The histogram has 4,000 points and rests on
+$4000 \times 8396$ simulated digits.
+
+1 and 2 are pieces of a replicate, not a replicate. 4 describes a bootstrap,
+which resamples the observed data; here we sample from the null distribution
+instead, which is fully specified and needs no data.
+
+## C3 (6 points)
+
+Treat the vector of nine observed digit proportions, computed from a sample of
+size $n$, as an estimator of the true digit distribution.
+
+**(i)** The $k = 1$ row puts digit 1 at about $0.95$ against $w_1 = 0.301$. Is
+that bias in the estimator? Answer in terms of what the estimator is estimating.
+
+<!-- answer-space: 1.3in -->
+
+**(ii)** In the $k = 100$ row the entries differ from $w_d$ in the third
+decimal place. What would you compute to decide whether those differences are
+real, and roughly what value does it take for the $d = 1$ entry?
+
+<!-- answer-space: 1.3in -->
+
+**(iii)** Summarize a row by the distance statistic $T$ --- the Euclidean
+distance between the nine observed proportions and $w_d$. If the truth really
+is Benford, is $\E{T} = 0$? Say why, and say what happens to the null
+distribution of $T$ as $n$ grows.
+
+<!-- answer-space: 1.7in -->
+
+### Solution
+
+**(i)** No. The estimator is unbiased for the truth it is handed, and at
+$k = 1$ that truth is not Benford: $Y \sim \text{Exp}(10)$ has mean 0.1, so $F$
+falls below 0.301 almost always. The gap is a fact about the distribution.
+
+**(ii)** $\sqrt{\hat p (1 - \hat p)/n} = \sqrt{0.301 \times 0.699 / 10^5}
+= 0.0014$, or a binomial interval on that entry. A third-decimal gap is about
+one standard error.
+
+**(iii)** No. $T \ge 0$ and is zero only if every $\hat p_d$ lands exactly on
+$p_d$, so $\E{T} > 0$ under the null --- the Exercise 6 null has mean 0.0096.
+Each $\hat p_d$ has SD of order $n^{-1/2}$, so the null distribution slides
+toward 0 and tightens as $n$ grows.
+
+**Rubric.** 2 pts each. (iii) needs both $\E{T} > 0$ and the $n^{-1/2}$ rate.
+
+# Part D --- Monte Carlo hypothesis tests (10 points)
+
+## D1 (2 points)
+
+The power exercise takes the critical value to be the 95% quantile of a batch
+of simulated null statistics, then draws a **fresh** batch from the alternative
+to estimate the power. Suppose you also wanted to check the size, and did it by
+asking what fraction of *those same null statistics* exceed the critical value.
+What do you get? **Circle one.**
+
+1. About $0.05$, confirming the test is correctly sized.
+1. Exactly $0.05$ up to rounding, by construction --- the check establishes
+   nothing.
+1. Something well above $0.05$, because reusing draws inflates the size.
+1. Something well below $0.05$, because a sample quantile is conservative.
+
+### Solution
+
+**Answer: 2.** The cutoff is the 95% quantile of those very numbers, so 5% of
+them exceed it whatever was drawn. A size check needs fresh null draws, just as
+the power estimate uses fresh alternative draws.
+
+1 gets the number right and the reason wrong, which is the whole question.
+
+## D2 (2 points)
+
+Exercise 7 takes the cutoff to be the 95% quantile of the simulated null
+statistics, at each $n$ separately. What does that choice fix? **Circle one.**
+
+1. The power, at 0.95.
+1. The size, at 0.05, whatever $n$ is.
+1. The $p$-value for the observed data.
+1. Nothing, until we see how many alternative draws exceed it.
+
+### Solution
+
+**Answer: 2.** Taking the 95% point of the null puts 5% of null datasets above
+the cutoff by construction --- that is the size, and it holds at every $n$
+because the quantile is recomputed each time. The cutoff itself changes a great
+deal (0.181 at $n = 50$, 0.015 at $n = 8396$); the size it delivers does not.
+
+Fixing the size first is what makes the three rows comparable: power is only
+meaningful against a common $\alpha$. 1 inverts size and power. 4 is the error
+D1 turns on --- the alternative draws measure power, not size.
+
+## D3 (6 points)
+
+The test in Exercises 6--7 rejects for large $T$ only.
+
+**(i)** Why is a lower tail not part of the rejection region? Say what it would
+cost and what it would buy, given the alternative Exercise 7 considers.
+
+<!-- answer-space: 1.4in -->
+
+**(ii)** Describe a situation in which a *small* $T$ would be the suspicious
+outcome. What is the alternative hypothesis there?
+
+<!-- answer-space: 1.4in -->
+
+**(iii)** A collaborator runs your test on 50 contributions, does not reject,
+and writes "these digits are consistent with Benford's Law, so the filings are
+clean." Using the Exercise 7 table, say what is wrong and what you can say instead.
+
+<!-- answer-space: 1.6in -->
+
+### Solution
+
+**(i)** It would spend $\alpha$ on the lower tail and buy nothing. Any
+alternative digit distribution adds a positive systematic term to $T$, so none
+of them makes $T$ unusually small.
+
+**(ii)** Data fabricated to pass --- digit counts set proportional to $w_d$, or
+a table rounded to match, fit closer than sampling noise allows. The
+alternative is that the digits are not iid draws from anything.
+
+**(iii)** Not rejecting is not accepting. Power against the halfway-to-uniform
+alternative at $n = 50$ is 0.379, so it slips past three times in five. The same test at
+$n = 8396$ has power 1.000, where a non-rejection would mean something.
+
+**Rubric.** 2 pts each. (iii) needs a number from the table. (ii) earns 1 for
+"fits too well", the second for naming what produces it.
+
+# Part E --- the whole module (10 points)
+
+## (a) Three sample sizes (5 points)
+
+Day 5 carries three counts that all look like a sample size. The letters
+standing for them have not been consistent across the module, so here they are
+by description:
+
+- **the data** --- 8,396 contributions in Exercise 6
+- **the replicates** --- 4,000 null draws in Exercise 6; in Exercise 7, 1,000
+  null and 1,000 alternative draws for each row of the table
+- **the factors** --- the $1, 5, 25, 100$ values multiplied together in
+  Exercise 4
+
+**(i)** One sentence each: what does each of the three control?
+
+<!-- answer-space: 1.5in -->
+
+**(ii)** The Exercise 6 $p$-value is reported as $< 1/4001$. Which of the three
+would you raise to report a *smaller number*, and which would you raise to make
+the *conclusion more convincing*? These need not be the same.
+
+<!-- answer-space: 1.4in -->
+
+**(iii)** Suppose the filings had held 200 contributions rather than 8,396, and
+the digit proportions came out about as they did. What happens to the
+$p$-value, and why? Name one number in Exercise 6 that does *not* move.
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(i)** The data is evidence about the world and not ours to choose; it fixes
+how small a departure the test can detect. The replicates are simulation
+budget, fixing how precisely we know the null distribution and the $p$-value,
+and costing only computer time. The factors are a property of the process in
+Exercise 4 --- multiplying more of them moves the truth itself toward Benford.
+
+**(ii)** Replicates for a smaller number, since the $p$-value cannot fall below
+$1/(B+1)$. Nothing, for a better conclusion: no null draw exceeded 0.023
+against an observed 0.135, so refining 0.00025 adds nothing. Only more
+contributions would sharpen the evidence, and 8,396 is what exists.
+
+**(iii)** The $p$-value rises and leaves the floor. The observed distance is a
+function of the nine proportions alone, so it stays near 0.135 --- but the null
+distribution widens with less data: Exercise 7 puts its 95% point at 0.092 for
+$n = 200$ against 0.015 at $n = 8396$, so 0.135 is no longer far beyond every
+null draw. Unmoved: the observed distance itself, $w_d$, $B = 4000$ and the
+floor $1/4001$.
+
+**Rubric.** 2 pts (i), 2 pts (ii), 1 pt (iii). (ii) needs the distinction ---
+replicates buy resolution, data buys evidence. In (iii), "the observed
+distance changes" earns nothing: the question holds the proportions fixed.
+
+## (b) Find an example (5 points)
+
+Point to one place in the Day 5 exercises that does each of the following, and
+say in a sentence why it fits.
+
+**1.** Estimating a probability or expectation with no closed-form answer.
+
+<!-- answer-space: 0.8in -->
+
+**2.** Approximating the sampling distribution of a statistic with no tractable
+form.
+
+<!-- answer-space: 0.8in -->
+
+**3.** Measuring an operating characteristic of a testing procedure.
+
+<!-- answer-space: 0.8in -->
+
+**4.** Investigating a claim you have no formal proof of.
+
+<!-- answer-space: 0.8in -->
+
+**5.** Checking a simulated answer against something you already know exactly.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+**1.** The Exercise 6 $p$-value, $P(m \ge m_{\text{obs}})$ under the null.
+
+**2.** The 4,000 null distances in Exercise 6; Exercise 7 reads its critical
+values off the same object.
+
+**3.** Exercise 7's power against the flatter alternative.
+
+**4.** Exercise 4: that the digits approach $w_d$ as $k$ grows. The CLT argument
+is a heuristic about a limit; the simulation asks when it arrives.
+
+**5.** Exercise 3 against $w_d$, and Exercise 2 against the $1/9$ its
+construction guarantees.
+
+**Rubric.** 1 pt each, generously. One exercise may serve more than one item.

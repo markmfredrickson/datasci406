@@ -39,7 +39,7 @@ tractable form.
 
 **(a)** The $p$-value.
 
-**(b)** The power against `p_alt`, or the size check returning about 0.05.
+**(b)** The power against `p_alt`.
 
 **(c)** The 4,000 simulated distance statistics --- the null distribution.
 
