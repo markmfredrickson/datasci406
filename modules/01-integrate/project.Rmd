@@ -22,7 +22,7 @@ The University of Helsinki recorded 159 fish caught in lake Laengelmavesi,
 including 56 perch. We will model the **length of a perch** (the `length1`
 measurement, in cm).
 
-```{r}
+```{r data}
 fish <- read.csv("../../data/fish.csv")
 perch <- filter(fish, species == 7)
 ggplot(perch, aes(x = length1)) + geom_histogram(bins = 10)
@@ -45,7 +45,7 @@ follows and matters in exactly one place, C.2.
 
 With $\alpha = \beta = 4$ the density is symmetric, with its peak at 25 cm:
 
-```{r}
+```{r fmod}
 fmod <- function(x) { dbeta(x / 50, 4, 4) / 50 }
 curve(fmod(x), from = -1, to = 55)
 ```
@@ -84,7 +84,7 @@ $$\E{X} = \int_0^{50} x f(x) \, dx,$$
 with a $U(0, 50)$ envelope and 10,000 draws. Report a 95\% confidence
 interval and check against numerical integration:
 
-```{r}
+```{r integrate}
 integrate(function(x) x * fmod(x), 0, 50)
 ```
 
@@ -135,7 +135,7 @@ values. Useful facts: a Beta($\alpha, \beta$) with $\alpha, \beta > 1$ has
 its mode at $(\alpha - 1)/(\alpha + \beta - 2)$, and plotting candidates
 against the target is the way to choose:
 
-```{r eval = FALSE}
+```{r b2-hint, eval = FALSE}
 curve(x * fmod(x), from = 0, to = 50)
 curve(K * dbeta(x / 50, alpha, beta) / 50, add = TRUE, col = "red")
 ## pick K so the two curves have comparable height
@@ -161,7 +161,7 @@ report the realized interval and its width.
 
 Sampling from the model is one line --- scale draws from `rbeta`:
 
-```{r}
+```{r rmod}
 rmod <- function(n) { 50 * rbeta(n, 4, 4) }
 ```
 
