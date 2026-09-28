@@ -387,12 +387,18 @@ diff(t.test(yr * iwr)$conf.int) / diff(t.test(yu * iwu)$conf.int)
 
 The envelope that **tracks $|h(x)| f(x)$** wins.
 
-## Further Reading in Chapter of SCR
+## Further Reading
 
 Every estimator today was a **sample mean**, which is why the rate never budged and all the work went into $\tau$. Two more techniques from the reading:
 
 - **Control variates** (SCR \S6.5--6.7): given a correlated $v(X)$ whose mean $\mu$ you know *exactly*, $h(X) + \beta(v(X) - \mu)$ is unbiased for **every** $\beta$ --- so choose the $\beta$ with the least variance. Antithetic variables are the case $v(U) = t(1 - U) - t(U)$, $\mu = 0$, where the best $\beta$ turns out to be $1/2$ for every $t$.
 - **Stratified sampling** (SCR \S6.7--6.8): partition the domain, sample each region separately, recombine. The cheapest of these to write, and on today's $u^{1/3}$ integral the most effective --- 10 equal strata cut the variance 97\%, against antithetic's 86\%. But it needs $k$ strata *per dimension*, so it fades in high dimensions for exactly the reason grid search did.
+
+Today's $\Pr(Z > 4.5)$ example is Robert \& Casella \S3.3.1. Their \S3.3.2 takes the
+weights one step further --- **sampling importance resampling**: resample the $Y_i$ with
+probability proportional to $f(Y_i) / g(Y_i)$ and you get draws *from $f$ itself*, not
+just an estimate of its mean. It still works when $f$ is known only up to a constant,
+because the constant cancels in the normalized weights.
 
 <!--
 ## Extensions: beyond the chapter

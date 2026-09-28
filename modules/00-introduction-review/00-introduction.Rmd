@@ -520,12 +520,13 @@ maxima**, not a flaw in the algorithm. With more groups the MLE moves toward 3.
 
 No required text, but several **recommended** (particularly first 2). Links to electronic copies available through the library on Canvas.
   
-- Rizzo, Maria L. *Statistical Computing with R, 2ed*
+- Rizzo, M. L. *Statistical Computing with R*, 2nd ed.
 - Wickham, H. \& Grolemund, G. *R for Data Science*
+- Robert, C. P. \& Casella, G. *Introducing Monte Carlo Methods with R*
 - Irizarry, R. A. *Introduction to Data Science*
 - Agresti, A. *Foundations of Linear and Generalized Linear Models*
 - Gentle, J. E. *Computational Statistics*
-- *Handbook of Computational Statistics*. H\"{a}rdle, Gentle, and Mori, eds.
+- Härdle, W., Gentle, J. E. \& Mori, Y., eds. *Handbook of Computational Statistics*
   
 All slides and videos will be posted to **Canvas** and **OneNote**.
 
