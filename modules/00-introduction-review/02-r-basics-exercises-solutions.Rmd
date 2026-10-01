@@ -1,0 +1,903 @@
+---
+title: "R Basics: Notes and Exercises"
+subtitle: "Module 0 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+options(digits = 7)
+```
+
+# 1. RMarkdown
+
+Plain text with **structured prose** and **embedded R**. Knitting runs the R and
+drops the results --- values, tables, plots --- into the output.
+
+The payoff: **the number in your prose and the number in your computation
+cannot disagree.**
+
+A **code chunk** runs R and shows both code and result:
+
+```{r}
+17 * 3
+```
+
+**Chunk options** control what appears --- `echo = FALSE` hides the code,
+`include = FALSE` hides both but still runs, `eval = FALSE` shows without
+running:
+
+````
+```{r echo = FALSE}
+17 * 3
+```
+````
+
+```{r echo = FALSE}
+17 * 3
+```
+
+**Inline code** puts a value in a sentence. `` `r "\x60r 17 * 3\x60"` `` gives:
+17 times 3 is `r 17 * 3`.
+
+## Exercise
+
+Using `Help -> Cheatsheets -> R Markdown Reference Guide`, add each of these to
+this document:
+
+- Bold and italic text
+- A header one level smaller than "Exercise" above
+- A link to <https://www.umich.edu>
+- A blockquote holding these two lines from Shakespeare's Sonnet 52:
+  - Blessed are you whose worthiness gives scope,
+  - Being had, to triumph, being lacked, to hope.
+- A numbered list with three elements, one having a bulleted sublist
+- The `um_logo.png` file that ships with this document, as an image
+- A table of states with capitals and state flowers: Michigan/Lansing/Apple
+  blossom, Ohio/Columbus/Carnation, Wisconsin/Madison/Wood violet
+
+### Solution
+
+**Bold** and *italic*.
+
+#### A smaller header
+
+A link to [the University of Michigan](https://www.umich.edu).
+
+> Blessed are you whose worthiness gives scope,
+>
+> Being had, to triumph, being lacked, to hope.
+
+1. This
+1. is a numbered list
+1. whose last element has a sublist
+    - of
+    - bullet
+    - points
+
+![The University of Michigan logo](um_logo.png){width=20%}
+
+| State | Capital | State flower |
+|---|---|---|
+| Michigan | Lansing | Apple blossom |
+| Ohio | Columbus | Carnation |
+| Wisconsin | Madison | Wood violet |
+
+---
+
+# 2. Getting help
+
+Every R function has a help page, and it is the answer to most questions.
+
+```{r eval = FALSE}
+?t.test          # a function you can name
+??"Student"      # search all help pages for a phrase
+?Arithmetic      # topics, not just functions
+```
+
+Read a help page **Usage** first --- argument names and defaults --- then
+**Arguments**, then the **Examples** at the bottom, which you can copy and run.
+
+`Help -> Cheatsheets` has one-page summaries of RMarkdown, `dplyr`, and
+`ggplot2`.
+
+Searching the web for R is hard because "R" is a letter. Put a function name in
+the query, not the language.
+
+---
+
+# 3. Variables and arithmetic
+
+Assignment uses `<-`. Names start with a letter and may contain letters, digits,
+`.`, and `_`.
+
+```{r}
+a1 <- 3
+b_2 <- 4
+C.3 <- a1 * b_2 + a1 / b_2
+C.3
+```
+
+`=` also assigns, and `==` asks about equality.
+
+```{r}
+x1 <- 1
+x2 = 1
+x1 == x2
+```
+
+I recommend `<-`: it cannot be mistaken for an equality check, and it reverses.
+
+```{r}
+2 -> x3
+x3
+```
+
+Arithmetic is what you expect, with the usual precedence:
+
+```{r}
+2 + 9 / 3
+(2 + 9) / 3
+```
+
+Anything beyond arithmetic is a **function**, called as `name(arg1, arg2)`:
+
+```{r}
+sqrt(2)
+exp(1)
+log(10)
+```
+
+Arguments have names and can be supplied by name in any order. `?log` gives the
+usage as `log(x, base = exp(1))`, so `base` has a **default** and is optional.
+
+```{r}
+log(64, base = 2)
+log(base = 2, x = 64)
+```
+
+R has a few built-in constants. We will use `pi` constantly:
+
+```{r}
+pi
+```
+
+R tells you when a variable does not exist, and the assignment does not happen
+either:
+
+```{r error = TRUE}
+d <- a7 + 1
+d
+```
+
+That means a typo, or lines run out of order.
+
+## Exercise
+
+Using the built-in `pi`:
+
+1. Compute the area and circumference of a circle of radius 3.
+2. Compute $1/\sqrt{2\pi}$ --- the height of the standard Normal density at
+   zero.
+3. Save the area to a variable and report it, rounded to two decimals, in a
+   sentence using **inline** R.
+
+**Expected output:**
+
+| | |
+|---|---:|
+| area | 28.27433 |
+| circumference | 18.84956 |
+| $1/\sqrt{2\pi}$ | 0.3989423 |
+
+### Solution
+
+```{r}
+r <- 3
+(area <- pi * r^2)
+2 * pi * r
+1 / sqrt(2 * pi)
+```
+
+`` `r "\x60r round(area, 2)\x60"` `` gives:
+
+> A circle of radius `r r` has area `r round(area, 2)`.
+
+The radius is written once, so changing it changes every number --- including
+the one in the sentence.
+
+---
+
+# 4. Vectors
+
+Almost all data in R is a **vector** with a length. There are no scalars; a
+single number is a vector of length one.
+
+```{r}
+length(99)
+```
+
+`c()` combines values. Arithmetic applies **element by element**, and a
+length-one vector is stretched to fit ("recycled"):
+
+```{r}
+some_odds <- c(7, 9, 11, 13)
+some_odds + some_odds
+2 * some_odds
+```
+
+This is **vectorization**. When the mathematics says "for each $i$", R usually
+lets you write it without saying "for each $i$".
+
+Sequences come from `:` and `seq()`; many functions take a vector and return one
+number:
+
+```{r}
+1:5
+seq(1, 10, by = 2)
+sum(1:10)
+```
+
+Every element has the same type, and logicals count as numbers with `TRUE` as 1:
+
+```{r}
+c(2.0, 7.1, -0.0002)
+c("This", "is", "a", "vector")
+sum(c(TRUE, FALSE, FALSE, TRUE))
+```
+
+A very useful property: `sum(condition)` counts, `mean(condition)` gives the
+proportion.
+
+```{r}
+mean(c(2.0, 7.1, -0.0002) > 1)
+```
+
+Square brackets extract, by position or by condition:
+
+```{r}
+letters[c(1, 5, 9, 15, 21)]
+some_odds[some_odds > 9]
+```
+
+## Exercise
+
+There are several series approximations to $\pi$. The **Madhava--Leibniz
+series**, found in Kerala in the 14th century and again in Europe in the 17th:
+
+$$\frac{\pi}{4} = 1 - \frac13 + \frac15 - \frac17 + \frac19 - \cdots
+= \sum_{k=1}^{\infty} \frac{(-1)^{k-1}}{2k-1}$$
+
+Create the first 5 terms with a vectorized computation, add them with `sum()`,
+and multiply by 4.
+
+```{r}
+k <- 1:5 # the digits 1, 2, 3, 4, 5 as a vector
+```
+
+### Solution
+
+```{r}
+k <- 1:5
+terms <- (-1)^(k - 1) / (2 * k - 1)
+terms
+4 * sum(terms)
+```
+
+`3.34` against a true value of `r round(pi, 4)`. Not great.
+
+---
+
+# 5. Lists
+
+A vector holds one type. A **list** holds anything, including other lists:
+
+```{r}
+ll <- list("A", 7, TRUE)
+```
+
+Two extraction operators, and the difference matters:
+
+```{r}
+ll[3]         # single brackets: a LIST of length 1
+class(ll[3])
+ll[[3]]       # double brackets: the THING inside
+class(ll[[3]])
+```
+
+Single brackets return the same kind of container; double brackets reach inside.
+When something "isn't a number" and you are sure it is, this is usually why.
+
+Named lists also take `$`:
+
+```{r}
+luke <- list(father = "Anakin", mother = "Amidala")
+luke$father
+```
+
+Lists matter because a function returning several things returns a list --- how
+every fitting routine in R hands you results:
+
+```{r}
+fit <- lm(hwy ~ displ, data = mpg)
+class(fit)
+fit$coefficients
+```
+
+---
+
+# 6. Writing functions
+
+A function is an object, created by assignment. The last expression is returned,
+so `return()` is optional:
+
+```{r}
+square <- function(x) {
+  x^2
+}
+square(4)
+```
+
+The body is ordinary R, so functions are **vectorized for free**:
+
+```{r}
+square(1:5)
+```
+
+Arguments can have defaults, and can be passed by name in any order:
+
+```{r}
+greet <- function(name, opening = "Hello") {
+  paste0(opening, ", ", name, ".")
+}
+greet("Ernie")
+greet("Ernie", opening = "Good morning")
+greet(opening = "Bonjour", name = "Bert")
+```
+
+Functions have their own scope --- assigning to `x` inside does not touch the
+`x` outside:
+
+```{r}
+x <- "hello"
+f <- function(x) {
+  x <- x + 1
+  x^2
+}
+f(7)
+x
+```
+
+But a function that *reads* a variable it was not given will find it outside,
+and change behaviour when that variable changes:
+
+```{r}
+y <- 127
+g <- function(x) x + y
+g(1)
+y <- -1
+g(1)
+```
+
+Same call, two answers, and nothing in `g` changed. **Pass everything a function
+needs as an argument.**
+
+## Exercise
+
+Write `S(n)` returning the **partial sum** after `n` terms,
+
+$$S(n) = \sum_{k=1}^{n} \frac{(-1)^{k-1}}{2k-1}$$
+
+vectorized, no loop. Give it a second argument `scale` defaulting to 4, so
+`S(n)` estimates $\pi$ directly and `S(n, scale = 1)` gives the raw sum.
+
+**Expected output:**
+
+| | |
+|---|---:|
+| `S(1)` | 4 |
+| `S(2)` | 2.666667 |
+| `S(5)` | 3.339683 |
+| `S(5, scale = 1)` | 0.8349206 |
+| `S(1000)` | 3.140593 |
+
+### Solution
+
+```{r}
+S <- function(n, scale = 4) {
+  k <- 1:n
+  scale * sum((-1)^(k - 1) / (2 * k - 1))
+}
+
+c(S(1), S(2), S(5), S(5, scale = 1), S(1000))
+```
+
+`n` is an argument, not read from outside, so `S` is safe to reuse. And the
+"sum over $k$" in the mathematics is a `sum()` over a vector in the code.
+
+---
+
+# 7. Iteration: `for` and `map`
+
+```{r include = FALSE}
+# S() from the previous exercise, so the examples below run whether or not you
+# have written your own version yet.
+S <- function(n, scale = 4) {
+  k <- 1:n
+  scale * sum((-1)^(k - 1) / (2 * k - 1))
+}
+```
+
+Vectorization handles most of what a loop would do. Use real iteration when each
+step depends on the last, or when calling a function repeatedly.
+
+```{r}
+for (animal in c("tiger", "llama", "cat")) {
+  print(paste("my favorite animal is", animal))
+}
+```
+
+To collect results, **allocate the container first**. Growing one with `c()`
+inside a loop copies it every pass, turning a linear job into a quadratic one:
+
+```{r}
+estimates <- numeric(5)          # allocate, do not grow
+for (i in 1:5) {
+  estimates[i] <- S(i)
+}
+estimates
+```
+
+Usually a helper iterates for you. `map()` returns a list; the typed variants
+return a vector:
+
+```{r}
+map_dbl(1:5, S)
+```
+
+The `~ .x` form writes a short anonymous function inline:
+
+```{r}
+map_dbl(1:5, ~ S(.x) - pi)
+```
+
+The rest of the family, worth knowing by name:
+
+```{r}
+reduce(1:10, `+`)                     # collapse to one value
+accumulate(1:5, `+`)                  # ... showing every step
+keep(1:10, ~ .x %% 2 == 0)            # select
+discard(1:10, ~ .x %% 2 == 0)         # reject
+map2_chr(c("red", "green"), c("whale", "ostrich"), paste)   # two at once
+```
+
+## Exercise
+
+Use `map_dbl()` to get the error `S(n) - pi` for
+`n = 1, 10, 100, 1000, 10000, 100000`.
+
+Then: **what simple formula in `n` do the errors follow?** Confirm by dividing.
+
+**Expected output:**
+
+| `n` | error |
+|---:|---:|
+| 1 | +8.585e-01 |
+| 10 | −9.975e-02 |
+| 100 | −1.000e-02 |
+| 1000 | −1.000e-03 |
+| 10000 | −1.000e-04 |
+| 100000 | −1.000e-05 |
+
+### Solution
+
+```{r}
+ns <- 10^(0:5)
+errs <- map_dbl(ns, ~ S(.x) - pi)
+signif(errs, 4)
+```
+
+The magnitude is $1/n$:
+
+```{r}
+errs * ns
+```
+
+The sign is negative only because these `n` are even; in general the error is
+$(-1)^n/n$. **The magnitude is $1/n$** --- ten times the work buys one more
+correct digit.
+
+Ten digits would need $10^{10}$ terms. Better series exist; Module 4 goes
+looking. For now, note that you *measured* the rate rather than guessed it.
+
+---
+
+# 8. Conditions: `if` and `while`
+
+Both take the same kind of argument: a single `TRUE` or `FALSE`. `if` asks once,
+`while` asks over and over.
+
+## `if`
+
+```{r}
+x <- 7
+
+if (x > 5) {
+  "big"
+} else {
+  "small"
+}
+```
+
+`else if` chains branches, and since the last expression is returned, this is
+often all a function needs to be:
+
+```{r}
+letter_grade <- function(score) {
+  if (score >= 90) {
+    "A"
+  } else if (score >= 80) {
+    "B"
+  } else {
+    "C"
+  }
+}
+
+c(letter_grade(95), letter_grade(85), letter_grade(70))
+```
+
+## `if` wants exactly one `TRUE` or `FALSE`
+
+The first error most people hit, and a direct consequence of Section 4:
+**everything is a vector.**
+
+```{r error = TRUE}
+v <- c(1, 5, 9)
+if (v > 4) "yes" else "no"
+```
+
+`v > 4` is three logicals and `if` cannot act on three answers at once. This is
+an **error**, not a warning --- it was only a warning before R 4.2, so older
+advice will disagree with your console.
+
+The fix depends on which of two things you meant.
+
+**One answer about the whole vector** --- reduce it first:
+
+```{r}
+any(v > 4)      # true anywhere?
+all(v > 4)      # true everywhere?
+sum(v > 4)      # how many?
+```
+
+**One answer per element** --- then you do not want `if` at all, you want the
+vectorized `ifelse()`:
+
+```{r}
+ifelse(v > 4, "yes", "no")
+```
+
+Same split in the operators: `&` and `|` work element by element, `&&` and `||`
+give one answer and belong in an `if`.
+
+```{r}
+c(TRUE, TRUE) & c(TRUE, FALSE)
+TRUE && FALSE
+```
+
+```{r error = TRUE}
+c(TRUE, TRUE) && TRUE
+```
+
+Two more conditions R refuses:
+
+```{r error = TRUE}
+if (NA > 1) "yes"
+```
+
+```{r error = TRUE}
+if (NULL) "yes"
+```
+
+The `NA` one bites in practice: `if (mean(x) > 0)` can work all term and then
+fail on the one dataset with an `NA` in it. That is a feature --- the
+alternative is quietly taking the wrong branch.
+
+## `while`
+
+The same question, asked before every pass. A `for` loop runs a known number of
+times; a `while` loop runs until its condition goes false.
+
+```{r}
+x <- 1
+halvings <- 0
+
+while (x > 1e-3) {
+  x <- x / 2
+  halvings <- halvings + 1
+}
+
+halvings
+x
+```
+
+Every iterative method in Module 4 has this shape: improve the guess until it
+stops changing.
+
+**Guard every `while` loop** --- nothing enforces that the condition will ever
+go false, and an unguarded loop that does not converge hangs your session. Note
+that the guard is itself an `if`:
+
+```{r eval = FALSE}
+while (not_there_yet) {
+  if (iter >= max_iter) stop("no convergence in ", max_iter, " iterations")
+  # ... improve the guess ...
+  iter <- iter + 1
+}
+```
+
+## Exercise
+
+Keep adding terms until the term you just added is small, then stop. You do not
+know how many terms that takes, so it is a `while` loop.
+
+Write `pi_while(tol)` returning the number of terms used, the estimate, and the
+error. Run it for `tol` of `1e-1`, `1e-2`, `1e-3`, `1e-4`, `1e-5`.
+
+Then: **you asked for `tol`. What accuracy did you get?**
+
+**Expected output:**
+
+| `tol` | terms | $\hat\pi$ | error |
+|---:|---:|---:|---:|
+| 1e-1 | 6 | 2.976046 | −1.655e-01 |
+| 1e-2 | 51 | 3.161199 | +1.961e-02 |
+| 1e-3 | 501 | 3.143589 | +1.996e-03 |
+| 1e-4 | 5001 | 3.141793 | +2.000e-04 |
+| 1e-5 | 50001 | 3.141613 | +2.000e-05 |
+
+### Solution
+
+```{r}
+pi_while <- function(tol, max_iter = 1e7) {
+  total <- 0
+  term <- Inf
+  k <- 1
+
+  while (abs(term) > tol) {
+    if (k > max_iter) stop("no convergence in ", max_iter, " terms")
+    term <- (-1)^(k - 1) / (2 * k - 1)
+    total <- total + term
+    k <- k + 1
+  }
+
+  c(terms = k - 1, pi_hat = 4 * total, error = 4 * total - pi)
+}
+
+sapply(c(1e-1, 1e-2, 1e-3, 1e-4, 1e-5), pi_while)
+```
+
+Both conditions are in there: the `while` asks whether the last term is still
+too big, the `if` asks whether we have gone on too long.
+
+**You asked for `tol` and got `2 * tol`** in every row. The factor of two is
+incidental. What matters: **a stopping tolerance is not an accuracy guarantee.**
+It measures your last step, not your distance from the answer.
+
+Here they happen to be related, because the series alternates with shrinking
+terms, so the error is bounded by the first term left out. Module 4 takes this
+up for methods where it is harder.
+
+---
+
+# 9. Data frames
+
+We have a range of `n` and an error at each: two parallel vectors. That is what
+a **data frame** is --- a list of equal-length vectors read as columns.
+
+`tibble()` is the tidyverse's data frame; `mutate()` adds columns computed from
+existing ones:
+
+```{r}
+convergence <- tibble(n = unique(round(10^seq(0, 3, by = 0.1)))) |>
+  mutate(estimate = map_dbl(n, S),
+         error    = abs(estimate - pi))
+
+convergence
+```
+
+The `|>` is the **pipe**: `x |> f(y)` means `f(x, y)`, so a chain reads left to
+right instead of inside out.
+
+A data frame is a list of vectors, so list notation works, and so does
+matrix-style indexing:
+
+```{r}
+convergence$n[1:5]      # a column, as a vector
+convergence[3, 2]       # row 3, column 2
+convergence[3, ]        # all of row 3
+```
+
+The `dplyr` verbs each take a data frame and return one, which is why they
+chain:
+
+```{r}
+convergence |>
+  filter(n >= 100) |>
+  mutate(digits = -log10(error)) |>
+  select(n, estimate, error, digits) |>
+  arrange(desc(digits)) |>
+  head(3)
+```
+
+A thousand terms buys three digits --- the $1/n$ rate from Section 7, in digits.
+
+`group_by()` plus `summarize()` computes per group instead of per table:
+
+```{r}
+mpg |>
+  group_by(cyl) |>
+  summarize(n = n(), mean_hwy = mean(hwy), sd_hwy = sd(hwy))
+```
+
+## Exercise
+
+The `starwars` data loads with the tidyverse.
+
+- How many characters, and how many columns?
+- What type is the `species` column?
+- What does `NA` in `hair_color` mean? Not a computation --- a question about
+  what the data records.
+- How many characters are from Tatooine?
+- Among humans, what is the mean `birth_year`?
+
+Hints: `TRUE` counts as 1 inside `sum()`, and most summary functions take
+`na.rm = TRUE`.
+
+**Expected output:**
+
+| | |
+|---|---:|
+| characters | 87 |
+| columns | 14 |
+| `NA` in `hair_color` | 5 |
+| from Tatooine | 10 |
+| mean human `birth_year` | **53.7423** |
+
+### Solution
+
+```{r}
+dim(starwars)
+class(starwars$species)
+sum(is.na(starwars$hair_color))
+sum(starwars$homeworld == "Tatooine", na.rm = TRUE)
+mean(starwars$birth_year[starwars$species == "Human"], na.rm = TRUE)
+```
+
+The `NA` question is the one to dwell on:
+
+```{r}
+starwars |> filter(is.na(hair_color)) |> pull(name)
+```
+
+Three droids, a Rodian, and a Hutt --- not missing measurements. There is no
+hair, so there is no colour to record. `NA` does not distinguish that from
+"nobody wrote it down"; only you can.
+
+Note also what `na.rm = TRUE` did in the Tatooine count: `NA == "Tatooine"` is
+`NA`, not `FALSE`, so without it the whole sum is `NA`.
+
+---
+
+# 10. Plotting
+
+`ggplot2` builds a plot from a **data** frame, a mapping of columns to
+**aesthetics** (position, colour, size), and **geometries** that draw.
+
+```{r}
+tibble(n = 1:40, estimate = map_dbl(n, S)) |>
+  ggplot(aes(x = n, y = estimate)) +
+  geom_hline(yintercept = pi, linetype = "dashed") +
+  geom_point() +
+  geom_line() +
+  labs(x = "terms", y = "estimate of pi")
+```
+
+The alternation, drawn. `+` adds layers; the dashed line is a geometry with no
+data of its own.
+
+That axis cannot show convergence. **Errors spanning orders of magnitude belong
+on log axes**, where error $\propto n^{-p}$ is a straight line of slope $-p$:
+
+```{r}
+ggplot(convergence, aes(x = n, y = error)) +
+  geom_line() +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = "terms (n)", y = "|error|")
+```
+
+Aesthetics other than position carry more variables. Which ones a geometry
+understands is on its help page (`?geom_point`):
+
+```{r}
+ggplot(mpg, aes(x = displ, y = hwy, color = class)) +
+  geom_point(alpha = 0.6)
+```
+
+A **histogram** bins one variable. Constants rather than data go *outside*
+`aes()`:
+
+```{r}
+ggplot(mpg, aes(x = hwy)) +
+  geom_histogram(binwidth = 2, fill = "steelblue")
+```
+
+**Facets** split a plot into small multiples --- usually better than another
+colour:
+
+```{r fig.height = 3}
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(size = 0.8) +
+  facet_wrap(~ drv)
+```
+
+## Exercise
+
+Two plots of `starwars`.
+
+**(a)** A scatter plot of `height` against `mass`. One point will ruin it ---
+name the character, then plot it again without that row and say what you can
+see now that you could not before.
+
+**(b)** A histogram of `height`, with a `binwidth` you can defend. What does
+the shape tell you that `mean(height)` would not?
+
+**Expected output:**
+
+| | |
+|---|---:|
+| heaviest character | Jabba Desilijic Tiure, 1358 kg |
+| next heaviest | Grievous, 159 kg |
+| median height | 180 cm |
+| height range | 66--264 cm |
+| characters under 100 cm | 7 |
+
+### Solution
+
+```{r warning = FALSE}
+ggplot(starwars, aes(x = height, y = mass)) + geom_point()
+
+slice_max(starwars, mass, n = 2) |> select(name, height, mass)
+```
+
+Jabba is 8.5 times the mass of the next heaviest character, so the axis has to
+span a range that leaves every other point in one corner. Drop him and the
+relationship appears:
+
+```{r warning = FALSE}
+starwars |>
+  filter(mass < 1000) |>
+  ggplot(aes(x = height, y = mass)) +
+  geom_point()
+```
+
+One observation was hiding an obvious linear trend. This is a preview of a theme
+in the course: a single extreme value can dominate a computation as completely
+as it dominates this figure.
+
+```{r warning = FALSE}
+ggplot(starwars, aes(x = height)) + geom_histogram(binwidth = 10)
+```
+
+The bulk sits near 180 cm, but there is a separate clump below 100 --- Yoda,
+Ratts Tyerel, the Ewoks, R2-D2. The distribution has two groups in it, and a
+mean would report a single number sitting between them, describing nobody.
+Look at the shape before you summarize it.

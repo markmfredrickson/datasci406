@@ -1,0 +1,408 @@
+---
+title: "Monte Carlo Integration: Session Exercises"
+subtitle: "Module 1, Day 1 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+set.seed(40601)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+Exercise 1 builds your toolbox of samplers. Every exercise after it uses
+the recipe from the video:
+
+1. Write the integral as $\E{h(X)}$ for a random variable $X$ you can sample.
+2. Sample $X_1, \ldots, X_n$ and average $h(X_i)$.
+3. Report a confidence interval, not just the point estimate.
+
+Each integration exercise has a known true value, so you can check your
+work. Your estimates will differ from the targets --- that is the point.
+Your confidence interval should usually cover the target.
+
+---
+
+# 1. A tour of R's distributions
+
+Let's investigate the distributions available in R.
+`?Distributions` lists every distribution R ships with; each has the
+`r`/`d`/`p`/`q` functions from the video. 
+
+## Exercise
+
+**(a)** Here is a start on a catalog of draws, in the long format that
+`ggplot` likes:
+
+```{r}
+n <- 1000
+draws <- list(
+  norm   = rnorm(n),
+  unif   = runif(n),
+  exp    = rexp(n),
+  cauchy = rcauchy(n)
+) |> enframe() |> unnest(value)
+
+draws |> group_by(name) |> summarize(mean(value))
+```
+
+Extend the list with **at least six more** distributions from the
+`?Distributions` page, mixing continuous and discrete. Most need
+parameters --- check the help page (e.g. `?rgamma`) and pick any sensible
+values; skip `rmultinom` (it returns a matrix). Then plot the whole
+catalog as histograms in one faceted figure
+(`facet_wrap(~ name, scales = "free")`).
+
+The **Cauchy** panel will look broken --- one bar and a huge empty axis.
+It is not a bug. Investigate:
+
+- Re-run your `summarize()` of the sample means a few times. Every other
+  distribution's mean barely moves between runs. What does the Cauchy's do?
+- Look at `sort(abs(rcauchy(n)), decreasing = TRUE)[1:5]` a few times.
+  Where is the histogram's x-axis coming from?
+
+**(b)** Pick **two** distributions from your catalog and explore their
+parameters, plotting draws across a grid of parameter values. Here is the
+pattern, applied to the Normal --- `expand_grid()` builds every
+combination, and `map2()` draws a sample for each row:
+
+```{r fig.height = 3}
+expand_grid(mean = c(-5, 0, 5), sd = c(0.5, 2)) |>
+  mutate(value = map2(mean, sd, ~ rnorm(2000, mean = .x, sd = .y))) |>
+  unnest(value) |>
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 40) +
+  facet_grid(sd ~ mean, labeller = label_both)
+```
+
+Adapt it to two distributions of your choice (not the Normal). For at
+least one of them, find parameter settings that make it match a
+distribution you already know.
+
+### Solution
+
+Six additions (any mix works; `?Distributions` has more):
+
+```{r fig.height = 6}
+draws <- bind_rows(
+  draws,
+  list(
+    beta    = rbeta(n, 2, 2),
+    binom   = rbinom(n, 10, 0.3),
+    chisq   = rchisq(n, 3),
+    gamma   = rgamma(n, 2),
+    pois    = rpois(n, 4),
+    weibull = rweibull(n, 2)
+  ) |> enframe() |> unnest(value)
+)
+
+draws |>
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 30) +
+  facet_wrap(~ name, scales = "free")
+```
+
+The Cauchy investigation:
+
+```{r}
+replicate(5, mean(rcauchy(n)))
+sort(abs(rcauchy(n)), decreasing = TRUE)[1:5]
+```
+
+Every run of `n = 1000` draws contains a few values hundreds of units from
+zero, and the histogram's axis stretches to hold them, crushing the bulk
+of the data into one bar. The sample mean never settles down, no matter
+how often you re-run it --- the Cauchy's tails are so heavy that
+$\E{|X|} = \infty$: it **has no mean**, so there is nothing for the sample
+mean to converge to. The law of large numbers needs $\E{X}$ to exist, and
+here it does not. The Cauchy returns in exercise 6 as the way Monte Carlo
+breaks.
+
+For the parameter exploration, the **Beta** is the one to know for this
+module --- its two parameters bend it into most shapes a distribution on
+$[0, 1]$ can take:
+
+```{r fig.height = 6}
+expand_grid(alpha = c(0.5, 1, 2, 5), beta = c(0.5, 1, 2, 5)) |>
+  mutate(value = map2(alpha, beta, ~ rbeta(2000, .x, .y))) |>
+  unnest(value) |>
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 40) +
+  facet_grid(alpha ~ beta, labeller = label_both)
+```
+
+$\text{Beta}(1, 1)$ is exactly $U(0, 1)$ --- the uniform is a special case.
+The project's Part B relies on this family, so keep the picture in mind.
+
+And the **Gamma**, whose shape parameter moves it from spiked to
+bell-shaped:
+
+```{r fig.height = 2.5}
+expand_grid(shape = c(0.5, 1, 2, 10)) |>
+  mutate(value = map(shape, ~ rgamma(2000, .x))) |>
+  unnest(value) |>
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 40) +
+  facet_wrap(~ shape, nrow = 1, scales = "free", labeller = label_both)
+```
+
+$\text{Gamma}(1)$ is $\text{Exp}(1)$ --- another special case, the same way
+the uniform sits inside the Beta family.
+
+---
+
+# 2. An integral on [0, 1]
+
+For an integral over $[0,1]$, $\int_0^1 g(x)\,dx = \E{g(U)}$, where $U$ is uniform on 
+$[0, 1]$. We can estimate the value of this integral by taking a sample of IID uniform draws
+and computing the sample mean of $g(U_i)$.
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^1 \sin(\pi x) \, dx$$
+using 10,000 uniform draws. Give a 95\% confidence interval using `t.test`.
+
+The true value is $2/\pi \approx 0.6366$. Does your interval cover it?
+
+### Solution
+
+```{r}
+us <- runif(10000)
+gs <- sin(pi * us)
+mean(gs)
+t.test(gs)$conf.int
+2 / pi
+```
+
+The interval covers $2/\pi$. It should, about 95\% of the time.
+
+---
+
+# 3. Same integral, two RVs
+
+The general recipe works with **any** density $f$ that is positive on the
+domain: $\int g(x)\,dx = \E{g(X)/f(X)}$ for $X \sim f$. Different choices
+of $f$ give different estimators of the **same** integral. Are they equally
+good?
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^\infty x^2 e^{-x} \, dx$$
+(true value $\Gamma(3) = 2! = 2$) twice, with 10,000 draws each:
+
+**(a)** with $f = $ Exp(1) draws (`rexp` / `dexp`), and
+
+**(b)** with $f = $ Gamma(shape 2, rate 1) draws (`rgamma` / `dgamma`) ---
+the Gamma family from exercise 1.
+
+Before coding, simplify $h(x) = g(x)/f(x)$ by hand in each case --- both
+simplify pleasantly.
+
+**(c)** Report a 95\% confidence interval for each. Both estimate the same
+$\theta$ from the same number of draws --- which interval is narrower, and
+by roughly what factor?
+
+**(d)** Plot the **ECDFs** of the 10,000 $h$ values from (a) and the
+10,000 from (b) on one set of axes (`stat_ecdf()`). What do the two curves
+have in common, and how does their difference explain (c)?
+
+**(e)** Repeat with $f = $ Gamma(shape 3, rate 1). Something
+strange happens --- run it, then explain.
+
+### Solution
+
+```{r}
+g <- function(x) { x^2 * exp(-x) }
+xs1 <- rexp(10000)
+h1 <- g(xs1) / dexp(xs1)          # simplifies to xs1^2
+xs2 <- rgamma(10000, shape = 2)
+h2 <- g(xs2) / dgamma(xs2, 2)     # simplifies to xs2
+mean(h1)
+mean(h2)
+t.test(h1)$conf.int
+t.test(h2)$conf.int
+```
+
+By hand: $h_1(x) = x^2 e^{-x}/e^{-x} = x^2$, and since the Gamma(2)
+density is $x e^{-x}$, $h_2(x) = x^2 e^{-x} / (x e^{-x}) = x$. The
+Gamma(2) interval is about **3 times narrower** from the same 10,000
+draws: $\Var{X^2} = 20$ under Exp(1) versus $\Var{X} = 2$ under Gamma(2),
+and CI width scales with the standard deviation, $\sqrt{20/2} \approx 3.2$.
+
+```{r}
+tibble(h = c(h1, h2),
+       envelope = rep(c("Exp(1)", "Gamma(2)"), each = 10000)) |>
+  ggplot(aes(x = h, color = envelope)) +
+  stat_ecdf() +
+  coord_cartesian(xlim = c(0, 15))
+```
+
+Both ECDFs are centered on the same place --- both estimators are unbiased
+for $\theta = 2$ --- but the Exp(1) curve rises slowly with a long tail to
+the right, while the Gamma(2) curve climbs steeply. Same target, less
+spread per draw, narrower interval. Two estimators of the same quantity
+can differ a lot in how much each sample is worth --- the next video calls
+this **efficiency**, and spends all its time engineering it.
+
+**(e)** The Gamma(3) density is $x^2 e^{-x} / 2$ --- proportional to the
+integrand itself. So
+$$h_3(x) = \frac{x^2 e^{-x}}{x^2 e^{-x} / 2} = 2 \quad \text{for every draw:}$$
+
+```{r error = TRUE}
+xs3 <- rgamma(10000, shape = 3)
+h3 <- g(xs3) / dgamma(xs3, 3)
+range(h3)
+t.test(h3)$conf.int
+```
+
+Every draw returns exactly 2, the variance is zero, and `t.test` refuses
+to run on constant data. One draw would have given the exact answer. The
+**perfect envelope is proportional to the integrand** --- but writing it
+down requires the normalizing constant, which is the integral we wanted.
+Getting *close* to proportional without knowing the constant is where the
+next video is headed.
+
+---
+
+# 4. Probabilities are expectations of indicators
+
+Recall an indicator function is a function that has the value 1 if a statement
+is true and 0 if the statement is false. They are the mathematical equivalent of
+`if` statements and conditionals in R. An important result is that for event $A$,
+
+$$P(A) = E(\mathbf{1}(A))$$
+
+In other words, we can estimate probabilities in the same way we estimate expectations.
+
+## Exercise
+
+For $Z \sim N(0, 1)$, estimate
+$$\theta = P(1 \le Z \le 2)$$
+using 100,000 draws.
+
+1. Write the indicator directly in R (no `ifelse` needed).
+2. Give a 99\% confidence interval. Which is the right tool here, `t.test`
+   or `binom.test`, and why?
+3. Check against the exact value from `pnorm`.
+
+### Solution
+
+```{r}
+zs <- rnorm(100000)
+hits <- (1 <= zs) & (zs <= 2)
+mean(hits)
+binom.test(sum(hits), length(hits), conf.level = 0.99)$conf.int
+pnorm(2) - pnorm(1)
+```
+
+`binom.test` is the right tool: the indicator is a Bernoulli random
+variable, so the interval for a proportion applies exactly, not just
+through the CLT approximation.
+
+---
+
+# 5. Joint distributions
+
+Nothing in the recipe is one-dimensional. A double integral is an
+expectation over a random **pair**: sample both coordinates, apply $h$,
+average. When the coordinates are independent, sampling the pair is just
+two calls to an `r` function.
+
+## Exercise
+
+**(a)** For $X, Y$ independent $U(0, 1)$, estimate the double integral
+$$\theta = \int_0^1 \int_0^1 |x - y| \, dx \, dy = \E{|X - Y|}$$
+with 100,000 pairs and a 95\% confidence interval. The true value is $1/3$.
+
+**(b)** For $Z_1, Z_2$ independent $N(0, 1)$, estimate
+$$P(Z_1 < Z_2 + 1)$$
+with a 99\% confidence interval, using the right interval tool for the
+job. Then check it exactly: what is the distribution of $Z_1 - Z_2$?
+
+### Solution
+
+```{r}
+xs <- runif(100000); ys <- runif(100000)
+diffs <- abs(xs - ys)
+mean(diffs)
+t.test(diffs)$conf.int
+```
+
+```{r}
+z1 <- rnorm(100000); z2 <- rnorm(100000)
+hits <- z1 < z2 + 1
+mean(hits)
+binom.test(sum(hits), length(hits), conf.level = 0.99)$conf.int
+```
+
+Part (b) is an indicator, so `binom.test`. For the exact check: $Z_1 - Z_2$
+is Normal with mean 0 and variance $1 + 1 = 2$, so
+$$P(Z_1 - Z_2 < 1) = \Phi(1/\sqrt{2})$$
+
+```{r}
+pnorm(1, mean = 0, sd = sqrt(2))
+```
+
+Two calls to `rnorm`, and the "double integral" never looked like one. The
+same recipe runs in any dimension --- and the video showed its error rate
+does not depend on the dimension.
+
+---
+
+# 6. When the recipe breaks
+
+The video stated conditions: $\E{h(X)} < \infty$ **and** $\E{h(X)^2} <
+\infty$. This exercise is about what happens when the second one fails.
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^\infty \frac{1}{1 + x^2} \, dx$$
+using Exp(1) draws, so $h(x) = e^{x} / (1 + x^2)$. The true value is
+$\pi/2 \approx 1.5708$.
+
+1. Run the estimator with $n = 100{,}000$ **five separate times**
+   (`replicate` helps). Do the answers agree with each other? With the
+   truth?
+2. The estimator is unbiased --- we proved that in the video. So what is
+   going wrong? Look at $\E{h(X)^2}$.
+3. Would increasing $n$ fix this?
+
+### Solution
+
+```{r}
+h <- function(x) { exp(x) / (1 + x^2) }
+replicate(5, mean(h(rexp(100000))))
+pi / 2
+```
+
+The five runs disagree wildly, and typically all sit **below** the truth,
+with occasional runs far above it.
+
+The variance condition fails:
+$$\E{h(X)^2} = \int_0^\infty \frac{e^{2x}}{(1+x^2)^2} \, e^{-x} \, dx
+= \int_0^\infty \frac{e^{x}}{(1+x^2)^2} \, dx = \infty$$
+since $e^x$ beats any polynomial. Rare draws far in the tail carry
+astronomically large $h$ values: most runs miss them (estimate too low) and
+an occasional run catches one (estimate far too high). With infinite
+variance the CLT does not apply, so the confidence interval machinery is
+**invalid** --- the intervals are narrow and wrong.
+
+Increasing $n$ does not fix it. The problem is the mismatch between where
+$1/(1+x^2)$ has its mass (heavy tail) and where Exp(1) samples (light
+tail). The fix is a better sampling distribution --- that is the subject of
+the next video (importance sampling).
+
+---
