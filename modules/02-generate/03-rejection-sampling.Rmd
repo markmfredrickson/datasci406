@@ -1,0 +1,674 @@
+---
+title: "Rejection and Accept-Reject Sampling"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(20261006)
+library(tidyverse)
+```
+
+# Rejection Sampling
+
+## Rejection Sampling
+
+<!-- TODO: opening slide placing day 3 in the module table: we have a density
+(possibly only up to a constant) and an envelope, but no quantile function. -->
+
+The idea of **rejection sampling** can be used when our **target RV** can be expressed as a subset of another **candidate RV**.
+
+Examples:
+
+- Conditioning on the variable itself, $X \sim \text{Poisson}(\lambda)$, $Y = X \mid X \text{ is odd}$
+- Truncated distributions, e.g. $X \sim N(0, 1)$, $Y = X \mid a < X < b$
+- Uniform points on the unit circle: $U_1, U_2 \sim U(-1, 1)$ (independent), $(V_1, V_2) = (U_1, U_2) \mid U_1^2 + U_2^2 \le 1$
+
+Procedure: generate from candidate, only keep results that meet criteria.
+
+## Example: Truncated Normal Distribution
+
+A **truncated distribution** takes a given distribution and **limits the support**.
+
+For example, $X \sim N(0,1)$ and $Y = X \mid 0 \le X \le 1$. We can sample by drawing from $X$ and only keeping those that fall in $(0, 1)$.
+
+```{r}
+x <- rnorm(10000)
+y <- keep(x, 0 < x & x < 1)
+length(y) # number of samples kept
+mean(y) # use the samples to estimate E(Y)
+```
+
+## The truncated normal CDF
+
+To check the sampler we need the distribution of $Y$. For $X \sim N(0,1)$, $Y = X \mid a \le X \le b$ and $a \le y \le b$,
+$$F_Y(y) = P(X \le y \mid a \le X \le b) = \frac{P(a \le X \le y)}{P(a \le X \le b)} = \frac{\Phi(y) - \Phi(a)}{\Phi(b) - \Phi(a)}$$
+where $\Phi$ is the standard normal CDF (`pnorm`).
+
+The denominator is the probability that a draw is kept:
+
+```{r}
+pnorm(1) - pnorm(0)
+```
+
+So we throw away about two thirds of the draws from $X$.
+
+## Truncated normal quantiles
+
+Set $F_Y(y) = p$ and solve for $y$:
+$$\Phi(y) = \Phi(a) + p\,[\Phi(b) - \Phi(a)] \Rightarrow Q_Y(p) = \Phi^{-1}\big(\Phi(a) + p\,[\Phi(b) - \Phi(a)]\big)$$
+
+The quantiles of $Y$ come from the quantiles of the full normal (`qnorm`), evaluated at $p$ rescaled into $[\Phi(a), \Phi(b)]$.
+
+```{r}
+qtnorm <- function(p, a, b) {
+  qnorm(pnorm(a) + p * (pnorm(b) - pnorm(a)))
+}
+```
+
+## Checking the rejection sampler
+
+```{r fig.height=2.5, fig.width=6}
+ggplot(data.frame(sample = y), aes(sample = sample)) +
+  geom_qq(distribution = qtnorm, dparams = list(a = 0, b = 1)) +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+## Rejection sampling summary
+
+- The target is a candidate conditioned on an event: $Y = X \mid X \in A$.
+- Draw from $X$ and keep the draws that land in $A$.
+- The fraction kept is $P(X \in A)$, which is $\Phi(b) - \Phi(a)$ for the truncated normal. When $A$ is rare, most draws are wasted.
+- Check the kept draws with a QQ plot against $Q_Y$.
+
+# Accept-Reject Method
+
+## Computing $\pi$
+
+Consider the following method for approximating the value of $\pi$:
+
+- Initialize $a = 0$
+- Generate $U_1$ and $U_2$ (independent) from $U(0,1)$
+- If $\sqrt{U_1^2 + U_2^2} \le 1$ then $a = a + 1$
+- Repeat $k$ times.
+- Approximate $\pi$ as
+      $$\pi = \frac{4a}{k}$$
+
+## Calculating in R
+
+```{r}
+approx_pi <- function(k) {
+  u1 <- runif(k)
+  u2 <- runif(k)
+  sqs <- sqrt(u1^2 + u2^2)
+  return(4 * sum(sqs <= 1) / k)
+}
+```
+
+## Approximation vs. $k$
+
+```{r echo=FALSE, fig.height=3.4, fig.width=6}
+xs <- seq(100, 100000, length.out = 50)
+ggplot(data.frame(k = xs, estimate = sapply(xs, approx_pi)), aes(k, estimate)) +
+  geom_line() +
+  geom_hline(yintercept = pi, lty = 2, color = "red") +
+  labs(y = "Approx Pi")
+```
+
+## Why does it work?
+
+Recall: the circle centered at $(0, 0)$ and with radius 1, has area $\pi$.
+
+We "throw darts" at the upper quadrant of the circle and see how many hit the circle.
+
+This proportion should be about $\pi/4$
+
+##
+
+```{r echo=FALSE, fig.height=3, fig.width=3, out.width="50%", fig.align="center"}
+u1 <- runif(100)
+u2 <- runif(100)
+inside <- u1^2 + u2^2 <= 1
+ggplot(data.frame(u1, u2, inside)) +
+  geom_point(aes(u1, u2, color = inside, shape = inside)) +
+  geom_function(fun = function(x) sqrt(1 - x^2), xlim = c(0, 1), n = 501, linewidth = 1) +
+  scale_color_manual(values = c("red", "blue")) +
+  coord_fixed(xlim = c(0, 1), ylim = c(0, 1)) +
+  theme(legend.position = "none")
+```
+
+## Another interpretation of Approximating $\pi$
+
+Notice that the following is a valid **probability density function**:
+$$f(x) = \frac{4}{\pi} \sqrt{1 - x^2}, 0 \le x \le 1$$
+
+This curve is just a **scaled version of the unit circle**.
+
+##
+
+```{r echo=FALSE, fig.height=3.5, fig.width=4, out.width="50%", fig.align="center"}
+u1 <- runif(100)
+u2 <- runif(100)
+inside <- u1^2 + u2^2 <= 1
+ggplot(data.frame(u1, u2, inside)) +
+  geom_point(aes(u1, 4 / pi * u2, color = inside, shape = inside)) +
+  geom_function(fun = function(x) 4 / pi * sqrt(1 - x^2), xlim = c(0, 1), n = 501, linewidth = 1) +
+  scale_color_manual(values = c("red", "blue")) +
+  coord_fixed(xlim = c(0, 1), ylim = c(0, 4 / pi)) +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none")
+```
+
+##
+
+```{r echo=FALSE, fig.height=3.5, fig.width=4, out.width="50%", fig.align="center"}
+k <- 10000
+u1 <- runif(k)
+u2 <- runif(k)
+inside <- u1^2 + u2^2 <= 1
+ggplot(data.frame(u1, u2, inside)) +
+  geom_point(aes(u1, 4 / pi * u2, color = inside, shape = inside), size = 0.5) +
+  geom_function(fun = function(x) 4 / pi * sqrt(1 - x^2), xlim = c(0, 1), n = 501, linewidth = 1) +
+  scale_color_manual(values = c("red", "blue")) +
+  coord_fixed(xlim = c(0, 1), ylim = c(0, 4 / pi)) +
+  labs(x = NULL, y = NULL) +
+  theme(legend.position = "none")
+```
+
+##
+
+```{r echo=FALSE, fig.height=3.8, fig.width=6}
+ggplot(data.frame(x = u2[inside]), aes(x = x )) + geom_histogram(aes(y = after_stat(density)), bins = 30, fill = "blue", alpha = 0.5) + stat_function(fun = function(x) { 4/pi*sqrt(1 - x^2)}, lty = 2, col = "red", lwd = 2)
+```
+
+## Interpretation
+
+- We started by drawing $U_1$ and $U_2$, and then keeping $U_2$ if $U_1^2 + U_2^2 \le 1$.
+- This is equivalent to picking $U_2$, and keeping $U_1$ if
+      $$\frac{4}{\pi} U_2 \le \frac{4}{\pi} \sqrt{1 - U_1^2} = f(U_1)$$
+      or written another way:
+      $$ U_2 \le \frac{\pi}{4} \frac{f(U_1)}{g(U_1)}, \quad g(x) = 1 \text{ (pdf of $U_1$)}$$
+- This process generated samples from $X$ (the variable with density $f(x)$)!
+
+## Accept-Reject in General
+
+Suppose we want to sample from density (or mass) function:
+$$f(x)$$
+
+We know $f(x)$, but can't easily sample from it directly (e.g., Normal distribution).
+
+But what if we had **another density** $g(y)$ such that
+$$c \times \frac{g(x)}{f(x)} \ge 1$$
+for some $c > 0$ and for all $x$ such that $f(x) > 0$.
+
+In other words we need $c g(x)$ to lie above $f(x)$ for any $x$ where $f(x)$ is positive.
+
+## Accept-reject for $f(x)$
+
+For the example we just did the **target density** was
+$$f(x) = \frac{4}{\pi} \sqrt{1 - x^2}, 0 \le x \le 1$$
+
+The **candidate density** was the uniform distribution
+$g(x) = 1, 0 \le x \le 1$
+
+The **constant** was
+$$c = \frac{4}{\pi}$$
+
+This ensures that:
+$$c g(x) = \frac{4}{\pi} \ge \frac{4}{\pi}\sqrt{1 - x^2}  = f(x)$$
+(NB: $c$ is not unique. We could have picked any $c \ge 4/\pi$.)
+
+## Example: Uniform and Beta
+
+Suppose we want to sample from the Beta(2,2) distribution which is:
+$$f(x) = 6x(1-x), \quad 0 \le x \le 1$$
+but we only have the standard uniform $g(x) = 1$.
+
+Observe that $f(x)$ achieves its max at $x = 0.5$, the maximum value is $f(0.5) = 6/4$. Therefore we have
+$$\frac{6}{4} \frac{g(x)}{f(x)} \ge 1$$
+for any point in $[0,1]$.
+
+##
+
+```{r echo=FALSE, fig.width=6, fig.height=4}
+ggplot() +
+  geom_function(fun = function(x) 6 * x * (1 - x), xlim = c(0, 1), n = 501) +
+  geom_hline(yintercept = 1, lty = 2, color = "blue") +
+  geom_hline(yintercept = 6/4, lty = 2, color = "red") +
+  ylim(0, 1.5) +
+  labs(x = "x", y = "density")
+```
+
+## Accept-Reject Algorithm
+
+- Draw a $Y$ from $g(y)$
+- Draw $U \sim U(0,1)$
+- If $$ U < \frac{f(Y)}{c g(Y)}$$
+      then **accept** $X = Y$
+- Otherwise, **reject** $Y$ as a candidate and repeat.
+
+## Example: Beta/Uniform
+
+Say we generate $Y = 0.3$.
+
+- $f(0.3) = 1.26$
+- $g(0.3) = 1$
+- We will accept if
+      $$U < \frac{1.26}{(6/4) \times 1} = 0.84$$
+
+##
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+ggplot() +
+  geom_function(fun = function(x) 6 * x * (1 - x), xlim = c(0, 1), n = 501) +
+  geom_hline(yintercept = 6/4, lty = 2, color = "blue") +
+  annotate("segment", x = 0.3, xend = 0.3, y = 0, yend = 1.26, linewidth = 1.5, color = "green") +
+  annotate("segment", x = 0.3, xend = 0.3, y = 1.26, yend = 6/4, linewidth = 1.5, color = "red") +
+  ylim(0, 1.5) +
+  labs(x = NULL, y = NULL)
+```
+
+## R implementation
+
+```{r}
+k <- 10000
+ys <- runif(k)
+fys <- 6 * ys * (1 - ys)
+gys <- 1
+ratios <- fys / (gys * (6/4))
+```
+
+```{r}
+us <- runif(k)
+accept <- us < ratios
+accepted <- ys[accept]
+rejected <- ys[!accept] ; mean(!accept)
+```
+
+##
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+ggplot(data.frame(y = ys, u = us, accept)) +
+  geom_point(aes(y, u * 6/4, color = accept, shape = accept)) +
+  geom_function(fun = function(x) 6 * x * (1 - x), xlim = c(0, 1), n = 501, linewidth = 1) +
+  geom_hline(yintercept = 6/4, lty = 2, color = "blue") +
+  scale_color_manual(values = c("red", "blue")) +
+  ylim(0, 1.5) +
+  labs(x = NULL, y = NULL)
+```
+
+## Checking the accepted draws
+
+```{r fig.height=2.5, fig.width=6}
+ggplot(data.frame(sample = ys[accept]), aes(sample = sample)) +
+  geom_qq(distribution = qbeta, dparams = list(shape1 = 2, shape2 = 2)) +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+## Proving the general case
+
+When proving an algorithm generates $X$ we need to show same cumulative distribution function (recall, we did this for inversion method, transformations, etc.).
+
+Let $V$ be the random variable produced by the AR algorithm, we need to show that
+$$P(V \le x) = P(X \le x)$$
+for any $x$ in the support of $X$.
+
+## What kind of variable is $V$?
+
+We know the distribution of $Y$ and $U$, but what can we say about $V$?
+
+Notice that $V$ is set to $Y$, when $U \le f(Y) / (c g(Y))$, a conditional distribution:
+$$V = Y \, \left| \, U \le \frac{f(Y)}{c \, g(Y)} \right.$$
+
+For events $A$ and $B$, recall the definition of conditional probability:
+$$P(A | B) = \frac{P(A, B)}{P(B)}$$
+
+## Proof
+
+\[
+P(V \le x) = P\left(Y \le x  \, \left| \, U \le \frac{f(Y)}{c \, g(Y)} \right.\right)
+    = \frac{P\left(Y \le x, U \le \frac{f(Y)}{c \, g(Y)} \right)}{P\left(U \le \frac{f(Y)}{c \, g(Y)}\right)}
+\]
+
+We'll take the numerator and denominator separately.
+
+In both cases, think of writing $P(\ldots) = E(I(\ldots))$, e.g.:
+$$P\left(Y \le x, U \le \frac{f(Y)}{c \, g(Y)} \right) = \E{I\left(Y \le x, U \le \frac{f(Y)}{c \, g(Y)}\right)}$$
+
+## Numerator
+
+Notice (a) by independence, the joint density is $1 \times g(y)$ and (b) $I(A, B) = I(A) I(B)$.
+\[
+\begin{aligned}
+P\left(Y \le x, U \le \frac{f(Y)}{c \, g(Y)} \right) &= \int_{-\infty}^{\infty} \int_0^1 I(y \le x) I(u \le f(y) / (c g(y))) g(y) \, du \, dy  \\
+&= \int_{-\infty}^{\infty} I(y \le x) g(y) \left[\int_0^1  I(u \le f(y) / (c g(y))) \, du \right] \, dy  \\
+&= \int_{-\infty}^{x} g(y) \left[\int_0^{f(y) / (c g(y))} 1 \, du \right] \, dy  \\
+&= \int_{-\infty}^{x} g(y) \frac{f(y)}{ c g(y)} \, dy   \\
+&=  \frac{1}{c} \int_{-\infty}^{x}  f(y) \, dy  = \frac{1}{c} P(X \le x)
+\end{aligned}
+\]
+
+## Denominator
+
+$$P\left(U \le \frac{f(Y)}{c \, g(Y)} \right) = \E{I\left(U \le \frac{f(Y)}{c \, g(Y)}\right)}$$
+By similar logic,
+\[
+\begin{aligned}
+P\left(U \le \frac{f(Y)}{c \, g(Y)} \right) &= \int_{-\infty}^{\infty} g(y) \left[\int_0^{f(y) / (c g(y))} 1 \, du \right] \, dy  \\
+&= \int_{-\infty}^{\infty} g(y) \frac{f(y)}{c g(y)} \, dy   \\
+&= \int_{-\infty}^{\infty} \frac{1}{c} f(y) \, dy  = \frac{1}{c}
+\end{aligned}
+\]
+
+Taking the ratio, the $(1/c)$ cancels, so $P(V \le x) = P(X \le x)$.
+
+## Example: Truncated Normal
+
+We've used the **rejection sampling algorithm** for the Truncated Normal before:
+$$Y = Z \mid 0 \le Z \le 1, Z \sim N(0,1)$$
+
+To use AR, we need the **density function**. We found the CDF earlier:
+$$F_Y(y) = \frac{\Phi(y) - \Phi(0)}{\Phi(1) - \Phi(0)}, \quad 0 \le y \le 1$$
+
+The PDF is its derivative. With $\phi$ the standard normal PDF, for $0 \le y \le 1$,
+$$f(y) = \frac{\phi(y)}{\Phi(1) - \Phi(0)}$$
+
+## Implementing in R
+
+```{r}
+(scaling_const <- pnorm(1) - pnorm(0))
+```
+
+Then we compute the density function as:
+
+```{r}
+truncated <- function(x) {
+  ifelse(x >= 0 & x <= 1,
+         dnorm(x) / scaling_const,
+         0)
+}
+```
+
+## Picking a candidate density: Uniform
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+envelope <- data.frame(x = c(0, 0, 1, 1), y = c(0, truncated(0), truncated(0), 0))
+ggplot() +
+  geom_function(fun = truncated, xlim = c(-0.5, 1.5), n = 501, linewidth = 1) +
+  geom_path(data = envelope, aes(x, y), lty = 2, linewidth = 1, color = "blue") +
+  labs(x = "x", y = "density")
+```
+
+## Implementing
+
+```{r}
+ys <- runif(1000)
+const <- truncated(0)
+ratios <- truncated(ys) / (const * 1) # g(y) = 1
+```
+
+```{r}
+us <- runif(1000)
+accept_uniform <- us < ratios
+accepted_uniform <- ys[accept_uniform]
+rejected_uniform <- ys[!accept_uniform]
+```
+
+Estimating $\E{X}$:
+
+```{r}
+mean(accepted_uniform)
+```
+
+##
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+ggplot() +
+  geom_point(data = data.frame(y = ys, u = us, accept = accept_uniform),
+             aes(y, u * truncated(0), color = accept, shape = accept)) +
+  geom_function(fun = truncated, xlim = c(-0.5, 1.5), n = 501, linewidth = 1) +
+  geom_path(data = envelope, aes(x, y), lty = 2, linewidth = 1, color = "blue") +
+  scale_color_manual(values = c("red", "blue")) +
+  labs(x = NULL, y = NULL)
+```
+
+We rejected $`r 100 * round(1 - mean(accept_uniform), 3)`\%$ of the candidate draws. Can we do better?
+
+## Fitting a closer candidate distribution
+
+Consider the density:
+$$g(y) = \frac{2}{3}(2 - y), \quad 0 \le y \le 1$$
+with quantile function
+$$Q_y(p) = 2 - \sqrt{4 - 3 p}$$
+
+Need to find a $c$ such that
+$$c \times \frac{g(x)}{f(x)} \ge 1 \Rightarrow c \ge \frac{f(x)}{g(x)}, 0 \le x \le 1$$
+
+##
+
+Notice that the **ratio $f(x)/g(x)$ is increasing**:
+
+```{r echo=FALSE, fig.height=2, fig.width=6}
+g <- function(y) { (2/3) * (2 - y)}
+ggplot() +
+  geom_function(fun = function(x) dnorm(x) / g(x), xlim = c(0, 1)) +
+  labs(x = "x", y = "f(x)/g(x)")
+```
+
+Then the maximum ratio is at $x = 1$.
+$$c = f(1)/g(1) = `r round(truncated(1)/g(1), 3)` \Rightarrow \frac{c g(x)}{f(x)} \ge 1, 0 \le x \le 1$$
+
+##
+
+```{r}
+g <- function(y) { (2/3) * (2 - y)}
+qg <- function(p) { 2 - sqrt(4 - 3 * p)}
+ys <- qg(runif(1000))
+const <- truncated(1) / g(1)
+ratios <- truncated(ys) / (const * g(ys))
+```
+
+```{r}
+us <- runif(1000)
+accept_g <- us < ratios
+accepted_g <- ys[accept_g]
+rejected_g <- ys[!accept_g]
+```
+
+##
+
+```{r echo=FALSE, fig.width=6, fig.height=3}
+envelope_g <- data.frame(x = c(0, 0, 1, 1), y = c(0, const * g(0), const * g(1), 0))
+ggplot() +
+  geom_point(data = data.frame(y = ys, u = us, accept = accept_g),
+             aes(y, u * const * g(y), color = accept, shape = accept)) +
+  geom_function(fun = truncated, xlim = c(-0.5, 1.5), n = 501, linewidth = 1) +
+  geom_path(data = envelope_g, aes(x, y), lty = 2, linewidth = 1, color = "blue") +
+  scale_color_manual(values = c("red", "blue")) +
+  labs(x = NULL, y = NULL)
+```
+
+Now we reject only $`r 100 * round(1 - mean(accept_g),3)`\%$ of the candidate draws.
+
+## Comparing Efficiency
+
+Recall: **more efficient** means lower variance. Both envelopes give exact draws from $f$, and from $m$ candidates, accept-reject keeps about $N = m/c$, so the mean of the kept draws has
+$$\Var{\bar X} = \frac{\Var{X}}{N} \approx \frac{c \, \Var{X}}{m}.$$
+
+So for a fixed $m$, the ratio of the variances is the ratio of the constants:
+
+```{r}
+c_uniform <- truncated(0)
+c_g <- truncated(1) / g(1)
+(rel_eff <- c_uniform / c_g)
+```
+
+The uniform envelope's estimate has `r round(100 * (rel_eff - 1))`\% more variance than the estimate using $g$.
+
+## A bimodal density
+
+Suppose we have a density of the form:
+$$f(x) = 0.25 \phi(x + 2) + 0.75 \phi(x - 1), -\infty < x < \infty$$
+where $\phi$ is the standard Normal PDF.
+
+```{r}
+f <- function(x) { 0.25 * dnorm(x + 2) + 0.75 * dnorm(x - 1)}
+```
+
+A density like this is called **bimodal** because it contains two local maxima.
+
+## Density of $f$
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+ggplot() + geom_function(fun = f, xlim = c(-5, 4), n = 501) + labs(x = "x", y = "f(x)")
+```
+
+## What candidate distribution?
+
+Our initial thought might be to use $\phi(x)$ (standard Normal) as the candidate.
+
+The only problem with that is that
+$$\lim_{x \rightarrow \pm\infty} f(x)/\phi(x) = \infty$$
+(i.e., no $c$ exists that uniformly bounds $f$).
+
+We saw that the Cauchy distribution has **fat tails**, perhaps that would be useful?
+$$g(x) = \frac{1}{\pi (1 + x^2)}$$
+
+## Ratio of $f(x)/\phi(x)$
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+ggplot() + geom_function(fun = function(x) f(x) / dnorm(x), xlim = c(-10, 18), n = 501) +
+  labs(x = "x", y = "f(x) / phi(x)")
+```
+
+## Ratio of $f(x)/g(x)$
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+ggplot() + geom_function(fun = function(x) f(x) / dcauchy(x), xlim = c(-10, 18), n = 501) +
+  labs(x = "x", y = "f(x) / g(x)")
+```
+
+## Lazy mode: find $c$ by evaluation
+
+```{r}
+h <- function(x) { f(x) / dcauchy(x)}
+xs <- seq(-4, 4, length.out = 1000)
+(const <- max(h(xs)))
+```
+
+## Plotting Distributions
+
+```{r echo=FALSE, fig.height=3, fig.width=6}
+ggplot() +
+  geom_function(aes(linetype = "c * Cauchy"), fun = function(x) const * dcauchy(x), xlim = c(-5, 5), n = 501) +
+  geom_function(aes(linetype = "f(x)"), fun = f, xlim = c(-5, 5), n = 501) +
+  labs(x = "x", y = "density", linetype = NULL)
+```
+
+## Putting it together
+
+```{r}
+k <- 10000
+ys <- rcauchy(k)
+ratios <- f(ys) / (const * dcauchy(ys))
+us <- runif(k)
+accept <- us < ratios
+x <- ys[accept] ; mean(accept)
+```
+
+##
+
+```{r echo=FALSE, warning=FALSE, fig.height=3.8, fig.width=6}
+df <- data.frame(y = ys, us = us, ratios, accept = accept, scaleu = const * dcauchy(ys) * us )
+ggplot(df, aes(x = ys, y = scaleu, color = accept)) +
+    xlim(-5,5) +
+    geom_point() +
+    stat_function(fun = f, lty = 2, col = "black") +
+    stat_function(fun = ~ const * dcauchy(.x), lty = 1, col = "red") +
+    labs(x = "Y", y = "c * g(Y) * U")
+```
+
+```{r echo=FALSE}
+rm(ratios) # just to avoid bugs in some copy/pasted code later
+```
+
+## What if we got $c$ wrong?
+
+We found $c = `r round(const, 3)`$. What if we were wrong? How would the distribution change? Too large, too small?
+
+```{r}
+wrong_consts <- c(2 *  const,
+                  const,
+                  0.75 * const,
+                  0.25 * const,
+                  0.1 * const,
+                  0)
+```
+
+## Functions to handle AR
+
+For numerical reasons, we'll rewrite $U \le f(Y) / (c  g(Y))$ as
+$$c \, g(Y) \, U \le f(Y)$$
+
+```{r}
+accept_reject <- function(n, f, g, rg, const) {
+    ys <- rg(n)
+    us <- runif(n)
+    accept <- us * const * g(ys) <= f(ys)
+    data.frame(y = ys, accept = accept)
+}
+```
+
+## Using the bad constants
+
+```{r}
+bimodal <- function(const) {
+    accept_reject(1000, f, dcauchy, rcauchy, const)
+}
+wrong <- map_dfr(wrong_consts, .id = "constant", bimodal)
+wrong$constant <- wrong_consts[as.numeric(wrong$constant)] # get the original labels back
+```
+
+##
+
+```{r echo=FALSE, warning=FALSE, fig.height=3.5, fig.width=6}
+accept_rates <- group_by(wrong, constant) %>% summarize(rate = mean(accept)) %>% mutate(label = factor(paste0(round(constant, 2), " (", round(rate, 2), ")")))
+
+wrong_accepted <- wrong[wrong$accept, ] %>% left_join(accept_rates, by = "constant")
+ggplot(wrong_accepted, aes(x = y)) + geom_density(fill = "blue", alpha = 0.25, lty = 0) +
+    stat_function(fun = f, lty = 2, lwd = 1, color = "red") +
+    stat_function(fun = dcauchy, lty = 1, lwd = 1, color = "#008800") +
+    xlim(-5, 5) +
+    facet_wrap(~ label)
+```
+
+<!-- TODO: failure case from the README, an envelope whose tail is too light.
+Use a normal envelope for a Cauchy target: no finite c bounds f/g, so any
+chosen c accepts draws whose tails are too thin. Show it as a sampling failure
+(QQ plot of accepted draws against qcauchy), not as an IS variance problem. -->
+
+## Accept-Reject Summary
+
+- For a density $f$, use a density $g$ for the sampling.
+- Draw uniform values to decide to accept or reject draws from $g$.
+- Need to figure out the scaling constant $c$ to make $c g(y) / f(y) \ge 1$
+- Generally, we accept about $100 \times (1/c)\%$ of the candidates, so making $c$ small is useful.
+- Picking $c$ too large is ok, too small leads to draws from $g$.
+
+<!-- TODO: accept-reject for an unnormalized f. AR also works with f* in
+place of f, provided c bounds f*/g; the unknown constant is absorbed into c.
+Importance resampling, the other method for a density known up to a constant,
+is in deck 5. -->
+
+<!-- TODO: deck summary slide covering rejection and accept-reject, plus a
+"Next" line pointing to day 4. -->
