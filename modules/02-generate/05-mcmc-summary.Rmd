@@ -1,0 +1,104 @@
+---
+title: "Importance Resampling and MCMC: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate, Session 5"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+library(ggplot2)
+set.seed(20261013)
+```
+
+## Known up to a constant
+
+$$f(x) = c \, f^*(x), \qquad c = \frac{1}{\int f^*(x) \, dx}$$
+
+- $f^*$ is easy to evaluate, but the integral may not be.
+- Today's two samplers use only $f^*$.
+
+| | needs an envelope $g$? | draws |
+|---|---|---|
+| **Importance resampling** | yes | resampled from $g$'s candidates |
+| **Markov chain Monte Carlo** | no | a dependent sequence |
+
+## Importance resampling
+
+1. Draw $Y_1, \ldots, Y_m$ from $g$.
+1. Weight each by $f^*(Y_i)/g(Y_i)$, and normalize the weights to sum to 1.
+1. Resample with `sample(y, replace = TRUE, prob = w)`.
+
+- $c$ **cancels** when the weights are normalized.
+- Nothing is rejected. The cost is a small bias that shrinks as $m$ grows.
+- $g$ must cover $f$, with tails at least as heavy. Otherwise a few
+  candidates carry almost all the weight.
+
+Example: $Z \mid Z \ge 4.5$ with candidates $4.5 + \text{Exp}(1)$.
+
+## Markov chains and burn in
+
+A **Markov chain** draws $X(t)$ given only $X(t - 1)$. If $f$ is
+**stationary** and the chain can reach all of $f$'s support, averages along
+the chain converge to $E_f(h(X))$.
+
+```{r fig.width=6, fig.height=1.8}
+chain <- numeric(100); chain[1] <- 10
+for (t in 2:100) chain[t] <- 0.9 * chain[t - 1] + sqrt(1 - 0.81) * rnorm(1)
+ggplot(data.frame(t = 1:100, x = chain), aes(t, x)) + geom_line() +
+  geom_hline(yintercept = c(-2, 2), lty = 2, color = "red") +
+  labs(y = "X(t)", title = "X(t) = 0.9 X(t-1) + sqrt(0.19) Z(t), started at 10") +
+  theme_bw(base_size = 9)
+```
+
+The early draws are not from $f$. Dropping them is **burn in**.
+
+## Metropolis-Hastings
+
+Accept-reject, with a candidate that depends on where the chain is.
+
+1. Propose $X^* \sim g(\cdot \mid X(t - 1))$.
+1. Move to $X^*$ if
+   $$U \le \frac{f^*(X^*)}{f^*(X(t - 1))} \, \frac{g(X(t - 1) \mid X^*)}{g(X^* \mid X(t - 1))},$$
+   and otherwise stay: $X(t) = X(t - 1)$.
+
+- $f$ appears only in a ratio, so $c$ cancels.
+- A move to lower density is sometimes accepted. That is what makes it a sampler and not an optimizer.
+- Check with a **trace plot**, and with a QQ plot when $Q$ is known.
+
+## Gibbs sampling
+
+The **full conditional** of $x_i$ is its distribution given all the other
+coordinates. As a function of $x_i$ it is proportional to $f$, so drop the
+factors without $x_i$.
+
+- Step through the coordinates, drawing each from its full conditional
+  given the **current** values of the rest.
+- A special case of Metropolis-Hastings in which every candidate is accepted.
+- Needs full conditionals we can draw from directly, and needs burn in like
+  any chain.
+
+Bivariate normal, correlation 0.8: $X_1 \mid X_2 = t \sim N(0.8\,t,\ 0.36)$.
+
+## Bayes and the Challenger
+
+$$\pi(\theta \mid x) \propto f(x \mid \theta)\, p(\theta)$$
+The posterior is known up to a constant, so all three samplers apply.
+
+Logistic model for O-ring distress against launch temperature, 23 flights:
+
+- Metropolis-Hastings gives $P(\text{distress at } 31^\circ\text{F})$ between
+  0.88 and 1.00 (95%), and a grid agrees.
+- Every flight was at least $22^\circ$F warmer, so the answer leans on the
+  model's form outside the data.
+
+**Failure case.** Importance resampling with the prior as the envelope:
+the prior is far wider than the posterior, so a few candidates carry nearly
+all the weight. The effective sample size is about 540 out of 100,000.

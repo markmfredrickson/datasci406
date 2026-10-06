@@ -1,0 +1,78 @@
+---
+title: "Multivariate Distributions and Processes: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate, Session 4"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+library(ggplot2)
+set.seed(20261008)
+```
+
+## Factoring a joint distribution
+
+Any joint density factors into a product of conditionals:
+$$f(x_1, \ldots, x_d) = f(x_1) \, f(x_2 \mid x_1) \cdots f(x_d \mid x_1, \ldots, x_{d-1})$$
+
+- **Sampler**: draw $X_1$, then $X_2$ given $X_1$, and so on. Each step is a univariate problem from days 1--3.
+- Any ordering of the coordinates works.
+- **Checking**: a QQ plot checks one coordinate at a time, and would also pass if the coordinates were drawn independently. Check the dependence too, e.g. with a correlation.
+
+## Multivariate normal
+
+If $\bm{Z} \sim N_d(\bm{0}, \bm{I}_d)$ and $\bm{\Sigma} = \bm{C}\bm{C}^T$, then
+$$\bm{C}\bm{Z} + \bm{\mu} \sim N_d(\bm{\mu}, \bm{\Sigma}).$$
+
+- The **Cholesky factorization** gives a lower triangular $\bm{C}$. In R, `chol(Sigma)` returns $\bm{C}^T$, so use `C <- t(chol(Sigma))`.
+- Cholesky is factoring. With unit variances and correlation $\rho$:
+$$X_1 = Z_1, \qquad X_2 = \rho X_1 + \sqrt{1 - \rho^2}\, Z_2,$$
+so $X_2$ is drawn from its conditional $N(\rho X_1, 1 - \rho^2)$.
+
+## Application: correlated tests
+
+$m$ test statistics on the same subjects, $\bm{Z} \sim N_m(\bm{0}, \bm{\Sigma})$ under the null.
+
+- **Bonferroni** rejects when $|Z_i| > \Phi^{-1}(1 - \alpha/2m)$. Its FWER is at most $\alpha$, and far below it when the tests are correlated.
+- **Max-$|Z|$**: reject when $|Z_i|$ exceeds the 95th percentile of $\max_i |Z_i|$, estimated by simulating $\bm{Z}$. Its FWER is 5%.
+
+Blue crabs, five size measurements, correlations above 0.95:
+
+| | Bonferroni | max-$\lvert Z \rvert$ |
+|---|:-:|:-:|
+| cutoff | 2.58 | 2.10 |
+| body depth, $z = 2.57$ | not significant | significant |
+
+## Stochastic processes
+
+A process $\{X(t)\}$ is simulated at finitely many times, one time at a time, by factoring.
+
+- **Random walk**: $X(t) = X(t - 1) \pm 1$. It depends on the past only through $X(t - 1)$, which makes it a **Markov chain**.
+- **Brownian motion**: on a grid, $W(t_i) \mid W(t_{i-1}) \sim N\big(W(t_{i-1}), t_i - t_{i-1}\big)$.
+- **Brownian bridge**: $B(t) = W(t) - t\,W(1)$, Brownian motion conditioned on $W(1) = 0$.
+- **Poisson process**: $\text{Exp}(\lambda)$ gaps by inversion (day 1), arrival times as sums of gaps (day 2), and $N(t) \sim \text{Poisson}(\lambda t)$.
+
+## Failure case: a coarse grid
+
+The maximum of $W$ on $[0, 1]$ has the distribution of $|Z|$ (the reflection principle).
+
+```{r fig.width=6, fig.height=2}
+max_w <- function(n) max(cumsum(rnorm(n, sd = sqrt(1 / n))), 0)
+sims <- data.frame(n = rep(c(20, 1000), each = 2000))
+sims$m <- sapply(sims$n, max_w)
+ggplot(sims, aes(sample = m, color = factor(n))) +
+  geom_qq(distribution = function(p) qnorm((1 + p) / 2), size = 0.5) +
+  geom_abline(intercept = 0, slope = 1) +
+  labs(x = "quantiles of |Z|", y = "simulated maximum", color = "grid size") +
+  theme_bw(base_size = 9)
+```
+
+Every grid value is an exact draw of $W(t_i)$, but the peaks fall between grid points, so the maximum on a coarse grid is too small.
