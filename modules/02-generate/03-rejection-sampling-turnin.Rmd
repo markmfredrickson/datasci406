@@ -80,6 +80,14 @@ Does the 95% interval contain $1/c$?
 
 **We will do C.2(a) and the related part of C.2(c). Importance resampling has been moved to day 5.**
 
+**Note.** Accept-reject works even though $f^*$ is not a proper density.
+Write $f = k\,f^*$, where $k$ is the unknown normalizing constant, and pick
+$c$ with $c\,g(x) \ge f^*(x)$ for all $x$. In the proof, the probability of
+accepting a draw at or below $x$ is $\frac{1}{ck} F(x)$. The probability of
+accepting at all is $\frac{1}{ck}$. Their ratio is $F(x)$, because the $k$s
+cancel. The accepted draws come from $f$. Only the acceptance rate changes:
+it is $1/(ck)$ instead of $1/c$.
+
 Fill in the blank.
 
 ```{r c2}
