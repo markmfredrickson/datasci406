@@ -5,5 +5,8 @@ modules/01-integrate/05-benfords-law-exercises.Rmd
 modules/01-integrate/05-benfords-law-quiz.Rmd
 modules/01-integrate/05-benfords-law-practice.Rmd
 modules/01-integrate/project.Rmd
+modules/02-generate/01-inverse-transform-quiz.Rmd
+modules/02-generate/02-transformations-mixtures-quiz.Rmd
 modules/02-generate/03-rejection-sampling-turnin.Rmd
+modules/02-generate/04-multivariate-processes-turnin.Rmd
 modules/02-generate/project.Rmd
