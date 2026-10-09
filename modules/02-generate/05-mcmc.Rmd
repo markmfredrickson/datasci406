@@ -44,16 +44,15 @@ Generate $m$ samples $Y_i$ from $g$. Pick a number $J$ between $1$ and $m$ with 
 $$P(J = i \mid Y_i) = \frac{1}{m} \frac{f(Y_i)}{ g(Y_i)}, \quad i = 1, \ldots, m$$
 and set $X = Y_J$ (notice: all $Y$ are random and $J$ is random).
 
+**Note: $(1/m) f(Y_i) / g(Y_i)$ might be larger than 1, we'll deal with this in a moment.**
+
 ## Before the proof
 
-Three facts about one candidate $Y_i$:
-
 1. $Y_i$ has density $g(y)$.
-2. Given $Y_i = y$, it is picked with probability $\frac{1}{m} \frac{f(y)}{g(y)}$.
-3. Multiplying, the probability that $Y_i$ is near $y$ **and** is picked is
-$$g(y) \cdot \frac{1}{m} \frac{f(y)}{g(y)} \, dy = \frac{1}{m} f(y) \, dy, \qquad \text{so} \qquad P(Y_i \le t, J = i) = \frac{1}{m} \int_{-\infty}^t f(y) \, dy.$$
+2. $P(J = i) = \frac{1}{m} \frac{f(y)}{g(y)}$.
+2. We will need to know the joint distribution of $Y_i$ and $J$. They are independent so 
 
-Fact 2 treats the $m$ probabilities as if they summed to 1. They do only on average, since $\E{f(Y_i)/g(Y_i)} = \int f(y) \, dy = 1$. Normalizing the weights, after the proof, fixes this.
+$$g(y, j) = g(y) \cdot \frac{1}{m} \frac{f(y)}{g(y)} = \frac{1}{m} f(y)$$
 
 ## Proof
 
