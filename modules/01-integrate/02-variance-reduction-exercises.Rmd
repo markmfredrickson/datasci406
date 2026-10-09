@@ -1,0 +1,120 @@
+---
+title: "Variance Reduction and Importance Sampling: Session Exercises"
+subtitle: "Module 1, Day 2 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+set.seed(40602)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+---
+
+# 1. Antithetic variables without uniforms
+
+The video built antithetic pairs from uniforms, because $U$ and $1 - U$ have
+the same distribution. But the idea is not about uniforms: it needs only
+some way to produce a second draw with **the same distribution** that is **negatively correlated**.
+
+For any *symmetric* distribution, negation is an easy way to achieve this result. If
+$Z \sim N(0,1)$ then $-Z \sim N(0,1)$ too, so $(Z, -Z)$ is an antithetic
+pair, and for monotone $h$ the pair $(h(Z), h(-Z))$ is negatively
+correlated.
+
+We will estimate
+$$\theta = \E{e^Z} = \int_{-\infty}^{\infty} e^z \phi(z) \, dz = e^{1/2} \approx 1.6487$$
+
+## Exercise
+
+**(a)** Estimate $\theta$ two ways with the same 10,000 evaluations of $h$:
+10,000 IID `rnorm` draws ($Z_i$), and 5,000 antithetic pairs
+$[e^{V_i} + e^{-V_i}]/2$. Report both estimates, the estimated variance of
+each *estimator*, and the percent variance reduction.
+
+Then compute `cor(exp(v), exp(-v))` on your 5,000 draws and put it next to
+the percent reduction. What do you notice?
+
+**(b)** A classmate objects that the pairing is only bookkeeping: the
+estimate is the average of all 10,000 values either way, so why not pool
+them and be done?
+
+```{r eval = FALSE}
+# remove eval = FALSE to run this chunk after creating v and antithetic pairs
+pooled <- c(exp(v), exp(-v))
+c(pooled = mean(pooled),           paired = mean(anti))
+c(pooled = var(pooled) / 10000,    paired = var(anti) / 5000)
+```
+
+One of those two comparisons agrees exactly and the other does not. Which
+variance is telling the truth? Settle it **empirically**: repeat the entire
+procedure 2,000 times and compare the actual variance of the 2,000 estimates
+against both candidates. The `replicate` function will be helpful.
+
+**(c)** Now try $h(z) = z^2$, so $\theta = \E{Z^2} = 1$. Something goes
+badly wrong. Why does that antithetic technique not work here?
+
+---
+
+# 2. Rare events
+
+Direct sampling is a bad way to estimate a small probability, because
+almost every draw contributes a zero. Importance sampling moves the
+sampling distribution to where the action is and reweights.
+
+## Exercise
+
+Estimate $\theta = P(Z \ge 3.5)$ for $Z \sim N(0,1)$; the exact value is
+`pnorm(3.5, lower.tail = FALSE)`.
+
+**(a)** Direct: 10,000 draws from `rnorm`, average the indicators, and give
+a 95% interval with the right tool. How many draws landed in the region?
+What are the only values this estimator can possibly return?
+
+**(b)** Importance sampling with a shifted exponential: draw
+$Y = 3.5 + \text{Exp}(\lambda)$, so
+$$g(y) = \lambda e^{-\lambda (y - 3.5)}, \quad y > 3.5,$$
+and every draw is in the tail. Then
+$$\theta = \E{\ind(Y \ge 3.5) \frac{\phi(Y)}{g(Y)}} = \E{\frac{\phi(Y)}{g(Y)}}.$$
+Run this with $\lambda = 1$ and 10,000 draws. Compare the estimated
+variance of the estimator with the exact variance of (a)'s.
+
+**(c)** Try $\lambda \in \{1, 2, 3, 4, 5, 8\}$. Which is best, and why is
+it not $\lambda = 1$? (Hint: what does the ideal envelope from the video
+look like here, and what is the shape of the normal density just past
+3.5?) Also print `range()` of the weights for your best $\lambda$ --- what
+does the video's safety condition say about them?
+
+---
+
+# 3. Which direction of tail mismatch is safe?
+
+Exercise 2 ran into trouble with an envelope that was too *light* in the
+tail. This settles the general question with a matched pair of runs.
+
+## Exercise
+
+The Cauchy has heavy (polynomial) tails; the Normal has light
+(exponential-in-$x^2$) tails. Estimate a tail probability in each
+direction, five runs of 100,000 draws each:
+
+**(a)** target Cauchy, envelope Normal: $P(C \ge 2)$ using `rnorm` draws.
+
+**(b)** target Normal, envelope Cauchy: $P(Z \ge 2)$ using `rcauchy` draws.
+
+One of these is fine and the other is not. Which, and state the general
+rule in one sentence. Then explain it with the finite-variance condition
+$\E{h(X)^2 f(X) / g(X)} < \infty$ from the video.
+
+---

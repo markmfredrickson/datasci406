@@ -1,0 +1,108 @@
+---
+title: "Turn-in 2.3: Project Part C"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20260929)
+library(tidyverse)
+```
+
+Worth 1 point for completion.
+
+Fill in the blanks in each code chunk and write your answers after each
+**Answer:**. Knit to HTML and upload the `.html` file to Canvas.
+
+A chunk with an unfilled blank shows an error when you knit. That is expected
+until you fill it in.
+
+These come from the project:
+
+```{r definitions}
+rlaplace <- function(n) {
+  u <- runif(n)
+  ifelse(u < 1/2, log(2 * u), -log(2 - 2 * u))
+}
+fstar <- function(x) sin(pi * x^2)
+```
+
+## Question 1 (C.1a)
+
+Find the smallest $c$ with $c \ge \phi(x)/g(x)$ for all $x$. The ratio
+$\phi(x)/g(x)$ is symmetric in $x$, so take $x \ge 0$, where
+$\phi(x) = e^{-x^2/2}/\sqrt{2\pi}$ and $g(x) = e^{-x}/2$.
+
+(a) Take logs. $\log\dfrac{\phi(x)}{g(x)}$ is a constant plus a term in $x$.
+What are the two?
+
+**Answer:**
+
+(b) Take the derivative with respect to $x$.
+
+**Answer:**
+
+(c) Where is the derivative zero?
+
+**Answer:**
+
+(d) Plug that $x$ into the ratio. What is $c = \phi(x)/g(x)$?
+
+**Answer:**
+
+## Question 2 (C.1b)
+
+Fill in the blanks, then make a QQ plot of `z` against the normal
+(`geom_qq()` uses the normal by default).
+
+```{r c1b}
+c_lap <- ________                  # in R, e is exp(1)
+y <- rlaplace(10000)
+keep <- runif(10000) <= dnorm(y) / (c_lap * ________)   # c times g(y)
+z <- y[keep]
+
+# your QQ plot of z here
+
+mean(keep)                          # acceptance rate
+1 / c_lap
+t.test(as.numeric(keep))$conf.int   # 95% interval for the acceptance rate
+```
+
+**Checkpoint:** put your QQ plot of the accepted draws on screen.
+
+Does the 95% interval contain $1/c$?
+
+**Answer:**
+
+## Question 3 (C.2)
+
+**We will do C.2(a) and the related part of C.2(c). Importance resampling has been moved to day 5.**
+
+**Note.** Accept-reject works even though $f^*$ is not a proper density.
+Write $f = k\,f^*$, where $k$ is the unknown normalizing constant, and pick
+$c$ with $c\,g(x) \ge f^*(x)$ for all $x$. In the proof, the probability of
+accepting a draw at or below $x$ is $\frac{1}{ck} F(x)$. The probability of
+accepting at all is $\frac{1}{ck}$. Their ratio is $F(x)$, because the $k$s
+cancel. The accepted draws come from $f$. Only the acceptance rate changes:
+it is $1/(ck)$ instead of $1/c$.
+
+Fill in the blank.
+
+```{r c2}
+y1 <- runif(10000)
+ar <- y1[runif(10000) <= ________]        # (a) accept-reject, c = 1
+exact <- integrate(function(x) x * fstar(x), 0, 1)$value /
+  integrate(fstar, 0, 1)$value             # (c)
+mean(ar)
+exact
+```
+
+## Question 4 (C.1)
+
+Suppose you had used $c = 2$ in C.1. Would the accepted draws still be
+$N(0, 1)$? What would happen to the acceptance rate?
+
+**Answer:**
+

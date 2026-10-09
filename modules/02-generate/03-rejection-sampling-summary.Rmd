@@ -1,0 +1,87 @@
+---
+title: "Rejection and Accept-Reject Sampling: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate, Session 3"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+library(ggplot2)
+```
+
+## Rejection sampling
+
+The target is a candidate conditioned on an event: $Y = X \mid X \in A$.
+
+- Draw $X$ and **keep the draws that land in $A$**.
+- The fraction kept is $P(X \in A)$. When $A$ is rare, most draws are wasted.
+- Examples: $X \mid X$ odd, a truncated normal, points in the unit disk.
+
+**Truncated normal**, $Y = Z \mid a \le Z \le b$:
+$$F_Y(y) = \frac{\Phi(y) - \Phi(a)}{\Phi(b) - \Phi(a)}, \qquad
+Q_Y(p) = \Phi^{-1}\big(\Phi(a) + p\,[\Phi(b) - \Phi(a)]\big).$$
+Check the kept draws with a QQ plot against $Q_Y$.
+
+## Accept-reject
+
+Target density $f$, candidate density $g$, and a constant $c$ with
+$c\,g(x) \ge f(x)$ wherever $f(x) > 0$.
+
+1. Draw $Y \sim g$ and $U \sim U(0, 1)$.
+1. **Accept** $X = Y$ if $U \le f(Y) / (c\,g(Y))$; otherwise reject.
+
+```{r fig.width=6, fig.height=1.9}
+set.seed(406)
+y <- runif(400); u <- runif(400)
+ggplot(data.frame(y, h = 1.5 * u, accept = 1.5 * u <= 6 * y * (1 - y))) +
+  geom_point(aes(y, h, color = accept), size = 0.8) +
+  geom_function(fun = function(x) 6 * x * (1 - x), n = 501) +
+  geom_hline(yintercept = 1.5, linetype = 2) +
+  scale_color_manual(values = c("red", "blue")) +
+  labs(x = "Y", y = "c g(Y) U") +
+  theme_bw(base_size = 9)
+```
+
+Beta(2, 2) under a uniform envelope with $c = 1.5$: keep the points below $f$.
+
+## Why it works
+
+The output is a conditional distribution:
+$V = Y \mid U \le f(Y)/(c\,g(Y))$.
+
+$$P(V \le x) = \frac{P\big(Y \le x,\; U \le f(Y)/(c\,g(Y))\big)}{P\big(U \le f(Y)/(c\,g(Y))\big)}
+= \frac{\frac{1}{c} F(x)}{\frac{1}{c}} = F(x)$$
+
+- The numerator step $\int_0^{f(y)/(c g(y))} du = f(y)/(c\,g(y))$ needs the ratio to be **at most 1**. That is why $c\,g \ge f$.
+- The denominator is the **acceptance rate**, $1/c$.
+
+## Choosing $g$ and $c$
+
+- The best $c$ is $\max_x f(x)/g(x)$. Find it by calculus, or evaluate the ratio on a grid.
+- A $c$ that is too large is still correct but wastes candidates.
+- From $m$ candidates about $m/c$ are kept, so $\Var{\bar X} \approx c\,\Var{X}/m$.
+- A $g$ closer in shape to $f$ gives a smaller $c$. For the truncated normal on $[0, 1]$:
+
+| envelope | $c$ | rejected |
+|---|:-:|:-:|
+| $U(0, 1)$ | 1.17 | 14% |
+| $\frac{2}{3}(2 - y)$ | 1.06 | 6% |
+
+The uniform envelope's estimate has about 10% more variance.
+
+## When accept-reject fails
+
+**Tails too light.** For $f(x) = 0.25\,\phi(x + 2) + 0.75\,\phi(x - 1)$ and
+$g = \phi$, $f(x)/\phi(x) \to \infty$, so no $c$ exists.
+
+- $g$'s tails must be at least as heavy as $f$'s.
+- The Cauchy works: its tails fall like $1/x^2$.
+- A $c$ found by evaluating on a grid only covers the grid. Check that the ratio is bounded outside it.

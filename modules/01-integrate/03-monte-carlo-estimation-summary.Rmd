@@ -1,0 +1,44 @@
+---
+title: "Monte Carlo Methods for Estimation: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate --- Session 3"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+## One draw is now a whole dataset
+
+An estimator is a function of the sample, so it is a **random variable**. Its distribution is the **sampling distribution**, and every question we ask about an estimator is an expectation over it.
+
+```{r eval=FALSE}
+theta_hats <- replicate(k, {
+  x <- rmodel(n, theta)   # simulate a whole dataset of size n
+  estimator(x)            # collapse it to one number
+})
+```
+
+- $n$ is the usually given by the a real data set
+- $k$ is your our choice: time vs. precision of estimate
+
+## Bias, variance, and MSE
+
+$$\text{Bias}(\hat\theta) = \E{\hat\theta} - \theta, \qquad
+\text{MSE}(\hat \theta) = \E{(\hat \theta - \theta)^2} = \Var{\hat\theta} + \text{Bias}(\hat\theta)^2$$
+
+- All three are expectation, estimate using mean of $\hat\theta - \theta$, or $(\hat\theta - \theta)^2$.
+- MSE balance accuracy and precision
+- The ranking can depend on $n$, so **try several $n$** 
+
+## Coverage and Expected Width
+
+$$\text{coverage} = P(A \le \theta \le B) = \E{\ind(A \le \theta \le B)}$$
+
+- Replicate samples with known $\theta$, create CI for each sample, proportion that include true $\theta$  
+- Coverage is a proportion out of $k$: report `binom.test(hits, k)$conf.int` alongside it.
+- After establishing coverage, compare different CI methods on **expected width** $\E{B - A}$.
