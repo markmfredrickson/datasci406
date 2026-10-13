@@ -1,0 +1,130 @@
+---
+title: "Turn-in 2.5: Project Part E"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20260929)
+library(tidyverse)
+```
+
+Worth 1 point for completion.
+
+Fill in the blanks in each code chunk and write your answers after each
+**Answer:**. Knit to HTML and upload the `.html` file to Canvas.
+
+A chunk with an unfilled blank shows an error when you knit. That is expected
+until you fill it in.
+
+These come from the project:
+
+```{r definitions}
+x1 <- 806  # raise it to $15/hr
+x2 <- 435  # do not raise it
+x3 <- 586  # raise it to $11/hr
+fstar <- function(x) sin(pi * x^2)
+```
+
+## Question 1 (E.1a)
+
+Multiply the likelihood by the prior and collect the powers of each factor:
+$$\theta_1^{x_1} \theta_2^{x_2} (1 - \theta_1 - \theta_2)^{x_3} \cdot
+  \theta_1^{\delta_1 - 1} \theta_2^{\delta_2 - 1} (1 - \theta_1 - \theta_2)^{\delta_3 - 1}
+  = \theta_1^{e_1 - 1}\, \theta_2^{e_2 - 1}\, (1 - \theta_1 - \theta_2)^{e_3 - 1}$$
+
+What are $e_1$, $e_2$ and $e_3$?
+
+**Answer:**
+
+This is the kernel of which distribution?
+
+**Answer:**
+
+## Question 2 (E.1b)
+
+Let $a_1 = x_1 + \delta_1$, $b = x_3 + \delta_3$ and $s = 1 - \theta_2$.
+Keeping only the factors with $\theta_1$,
+$\pi(\theta_1 \mid \theta_2, x) \propto \theta_1^{a_1 - 1} (s - \theta_1)^{b - 1}$
+for $0 < \theta_1 < s$. For $B \sim \text{Beta}(a_1, b)$, the density of $sB$ is
+$$\frac{1}{s} f_B\!\left(\frac{\theta_1}{s}\right) \propto
+  \left(\frac{\theta_1}{s}\right)^{a_1 - 1} \left(1 - \frac{\theta_1}{s}\right)^{b - 1}
+  \propto \text{(blank)}$$
+
+What goes in the blank, dropping factors without $\theta_1$?
+
+**Answer:**
+
+The matching result: $\theta_2 \mid \theta_1, x$ has what distribution?
+
+**Answer:**
+
+## Question 3 (E.2)
+
+Fill in the blanks, with every $\delta_i = 1$. The last two lines print the
+posterior means, the 95% intervals and $P(\theta_1/\theta_2 > 2 \mid x)$.
+
+```{r e2}
+gibbs <- function(k, t1 = 1/3, t2 = 1/3) {
+  chain <- matrix(0, k, 2, dimnames = list(NULL, c("theta1", "theta2")))
+  for (i in 1:k) {
+    t1 <- (1 - t2) * rbeta(1, x1 + 1, x3 + 1)
+    t2 <- ________ * rbeta(1, ________, ________)
+    chain[i, ] <- c(t1, t2)
+  }
+  chain
+}
+chain <- gibbs(5000)
+matplot(chain, type = "l", lty = 1)          # trace plot
+post <- chain[-(1:1000), ]
+post <- cbind(post, theta3 = 1 - post[, "theta1"] - post[, "theta2"])
+rbind(mean = colMeans(post), apply(post, 2, quantile, c(0.025, 0.975)))
+mean(post[, "theta1"] / post[, "theta2"] > 2)
+```
+
+**Checkpoint:** put the trace plot of $\theta_1$ and $\theta_2$ on screen.
+
+## Question 4 (E.3)
+
+Make QQ plots of `direct[, 1]` and of `post[, "theta1"]` against `qbeta`,
+passing `dparams = list(shape1 = a[1], shape2 = ________)`.
+
+```{r e3}
+a <- c(x1, x2, x3) + 1
+g <- sapply(a, function(ai) rgamma(4000, ai))
+direct <- g / rowSums(g)
+mean(direct[, 1] / direct[, 2] > 2)
+
+# your two QQ plots here
+```
+
+**Checkpoint:** put both QQ plots on screen.
+
+Do the direct and Gibbs estimates of $P(\theta_1/\theta_2 > 2 \mid x)$ agree,
+given that each is a Monte Carlo estimate?
+
+**Answer:**
+
+## Question 5 (C.2b)
+
+Back to Part C. Fill in the blank.
+
+**Note.** Accept-reject and importance resampling both avoid the normalizing
+constant $k$ in $f = k\,f^*$. Accept-reject only needs $c\,g \ge f^*$, and
+the $k$s cancel in the ratio in its proof. Importance resampling normalizes
+the weights, and $k$ cancels there. The video writes this constant as $c$.
+That $c$ is not the accept-reject envelope constant.
+
+```{r c2b}
+y2 <- runif(10000)
+w <- fstar(y2) / sum(fstar(y2))
+sir <- sample(y2, 5000, replace = TRUE, prob = ____)
+mean(sir)
+```
+
+What was your C.2(a) accept-reject estimate, from turn-in 2.3?
+
+**Answer:**
+
