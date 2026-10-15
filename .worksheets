@@ -10,5 +10,8 @@ modules/02-generate/02-transformations-mixtures-quiz.Rmd
 modules/02-generate/03-rejection-sampling-turnin.Rmd
 modules/02-generate/03-rejection-sampling-quiz.Rmd
 modules/02-generate/04-multivariate-processes-turnin.Rmd
-modules/02-generate/05-mcmc-turnin.Rmd
+modules/02-generate/04-multivariate-processes-quiz.Rmd
+modules/02-generate/05-unnormalized-densities-turnin.Rmd
 modules/02-generate/project.Rmd
+modules/02-generate/06-counting-customers.Rmd
+modules/02-generate/06-counting-customers-practice.Rmd
