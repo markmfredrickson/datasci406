@@ -1,0 +1,99 @@
+---
+pagetitle: "Quiz 2.2: Transformations, Sums, and Mixtures"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 2.2**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+Which line draws `n` values from the 50/50 mixture of $N(-2, 1)$ and
+$N(2, 1)$?
+
+1. `0.5 * rnorm(n, -2) + 0.5 * rnorm(n, 2)`
+1. `rnorm(n, mean = sample(c(-2, 2), n, replace = TRUE))`
+1. `rnorm(n, mean = 0.5 * (-2) + 0.5 * 2)`
+1. `sample(c(rnorm(1, -2), rnorm(1, 2)), n, replace = TRUE)`
+
+### Solution
+
+**Answer: 2.** This is the random-parameter reading: each draw first picks
+its mean, then draws from that normal. Option 1 averages the two variables,
+which gives the unimodal $N(0, 1/2)$; a sum is not a mixture. Option 3 averages
+the means and draws from $N(0, 1)$. Option 4 draws each component only once,
+so all `n` values are one of two numbers.
+
+## Question 2 (1 point)
+
+$X$ has density $f(x) = \frac{3}{2} x^2$ on $-1 \le x \le 1$. On $[0, 1]$,
+$X \mid X > 0$ has CDF $x^3$. Which line draws `n` values of $X$?
+
+1. `runif(n, -1, 1)^(1/3)`
+1. `sample(c(-1, 1), n, replace = TRUE) * runif(n)^(1/3)`
+1. `sample(c(-1, 1), n, replace = TRUE) * runif(n)^3`
+1. `2 * runif(n)^(1/3) - 1`
+
+### Solution
+
+**Answer: 2.** $f$ is symmetric, so $P(X > 0) = 1/2$, and $X \mid X > 0$ has
+quantile function $u^{1/3}$. A random sign times a draw of $X \mid X > 0$ is
+the Laplace construction from the video. Option 3 applies the CDF instead of
+its inverse. Option 4 rescales a $[0, 1]$ variable to $[-1, 1]$, which does not
+preserve the density. Option 1 takes cube roots of negative numbers, which R
+returns as `NaN`, and on $[0, 1]$ it would not give density $3x^2$ anyway.
+
+## Question 3 (1 point)
+
+$X$ and $Y$ are independent $U(0, 1)$ and $Z = X + Y$. Which is true?
+
+1. $Z \sim U(0, 2)$, since adding two uniforms gives a uniform.
+1. $Z$ is a 50/50 mixture of $U(0, 1)$ and $U(1, 2)$.
+1. $Z$ has density $z$ on $[0, 1]$ and $2 - z$ on $[1, 2]$.
+1. $Z \sim N(1, 1/6)$ exactly, by the central limit theorem.
+
+### Solution
+
+**Answer: 3.** The convolution $\int f_X(z - y) f_Y(y)\,dy$ is the length of
+the overlap of $[0, 1]$ and $[z - 1, z]$, a triangle peaking at $z = 1$.
+Sums near 1 can be made many ways and sums near 0 or 2 only one way, so
+option 1 is wrong. Option 2 has density $1/2$ everywhere on $[0, 2]$, which is
+option 1 again. Option 4 has the right mean and variance but is a large-sample
+approximation, and $Z$ is bounded.
+
+## Question 4 (1 point)
+
+Under $H_0: \mu = 0$, data are drawn from the mixture
+$0.8\,N(0, 1) + 0.2\,N(0, 10)$ (variances), and the test rejects when
+$|\bar X| \ge 1.96 / \sqrt{n}$. Why does it reject more than 5% of the time?
+
+1. The contamination moves the mean of the data away from 0.
+1. Each observation has variance $0.8 \cdot 1 + 0.2 \cdot 10 = 2.8$, so $\bar X$ is more spread out than the cutoff assumes.
+1. The sample mean is a biased estimator under contamination.
+1. $n$ is too small; with $n = 1000$ the size would be 0.05.
+
+### Solution
+
+**Answer: 2.** Both components have mean 0, so the mixture has mean 0 and
+variance $\sum a_i \sigma_i^2 = 2.8$. The cutoff assumes variance 1. Options 1
+and 3 are wrong for the same reason: $E(\bar X) = 0$. Option 4 is wrong because
+the cutoff uses the wrong variance at every $n$; the size does not improve as
+$n$ grows.
+
+**Rubric.** 1 pt per question, no partial credit.
