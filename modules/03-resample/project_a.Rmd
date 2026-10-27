@@ -1,0 +1,95 @@
+---
+title: "Module 3 Project, Part A: The Bootstrap"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(20261027)
+library(tidyverse)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 3 - Resample, each in its own file. This is Part A. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Every part uses the daily record of Capital Bikeshare, the bike-sharing
+system in Washington DC, for the 731 days of 2011 and 2012. Each row is a day.
+`total` counts that day's rentals, split into `casual` riders and
+`registered` members, and `temp` is the day's average temperature in degrees
+Celsius. `data-raw/bikes.R` describes the other columns.
+
+```{r bikes}
+bikes <- read.csv("../../data/bikes.csv")
+n <- nrow(bikes)
+head(bikes)
+```
+
+Days are not independent. A warm week tends to follow a warm week, and
+ridership grew from 2011 to 2012. Part A treats the days as independent, and
+Part C comes back to this.
+
+# Part A: The bootstrap
+
+## A.1
+
+(a) Write `boot_reps(d, stat, B)`, which draws `B` bootstrap samples of the
+rows of the data frame `d` and returns `stat` of each. Use `sample` and
+`replicate`. The statistic takes a data frame, for example
+`function(d) mean(d$total)`. With $B = 2000$, compare the bootstrap SE of the
+mean of `total` with $s / \sqrt n$.
+
+(b) Plot `total` against `temp`, and compute their correlation $r$. Bootstrap
+$r$ with $B = 2000$, and report the bootstrap SE and the normal, basic and
+percentile 95% intervals.
+
+## A.2
+
+The **Gini coefficient** measures how unequal a distribution is. For a
+distribution $F$ with mean $\mu$, and $X$ and $Y$ independent draws from $F$,
+$$G = \frac{\E{|X - Y|}}{2\mu}.$$
+It is 0 when every value is the same, and it approaches 1 when a few values
+are much larger than the rest. Here it measures how unevenly rentals are
+spread over the days.
+
+(a) The plug-in estimator replaces $F$ with $\hat F$, the distribution that
+puts mass $1/n$ on each of $x_1, \ldots, x_n$. Show that this gives
+$$\hat G = \frac{1}{2 \bar x n^2} \sum_{i=1}^n \sum_{j=1}^n |x_i - x_j|.$$
+Hints: if $X$ and $Y$ are independent draws from $\hat F$, what is
+$P(X = x_i, Y = x_j)$? And what is the mean of $\hat F$?
+
+(b) Write `gini(x)`. `outer(x, x, "-")` computes every difference
+$x_i - x_j$. The exponential distribution has $G = 1/2$; check `gini` on
+10,000 exponential draws.
+
+(c) Compute $\hat G$ for `casual` and for `registered`, and their difference.
+Bootstrap the difference by resampling days, with $B = 2000$, and report its
+SE and percentile 95% interval. Then compute the SE a second way, taking the
+two Gini coefficients from two independent bootstrap samples of days. Which
+SE is correct, and why is the other one larger?
+
+## A.3
+
+(a) A bootstrap sample draws $n$ times with replacement from $n$ days. Show
+that the probability a given day is left out of the sample is
+$(1 - 1/n)^n$. Recall from the "Why 63%" slide in video 1 that $(1 - 1/n)^n \to e^{-1} \approx 0.368$
+as $n \to \infty$.
+
+(b) The quietest day was October 29, 2012, when Hurricane Sandy reached
+Washington, with `r min(bikes$total)` rentals. Bootstrap the minimum of
+`total` with $B = 2000$. What fraction of the bootstrap minima equal
+`r min(bikes$total)`, and what does (a) predict? Tabulate the values the
+bootstrap minimum takes, and give the percentile 95% interval. Why does the
+bootstrap fail for this statistic?
+
