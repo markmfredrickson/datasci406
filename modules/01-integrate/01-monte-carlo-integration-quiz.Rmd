@@ -1,0 +1,65 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+**Quiz 1.1**
+
+**Name and Uniqname:**
+
+Each question has **one correct answer.** Circle the correct answer only.
+
+## Question 1 
+
+Which R expression is a Monte Carlo estimate of $\int_0^1 \cos(\pi x / 2) \, dx$?
+
+1. `cos(pi * mean(runif(1000)) / 2)`
+1. `mean(cos(pi * runif(1000) / 2))`
+1. `mean(cos(pi * (1:1000) / 2000))`
+1. `mean(runif(1000)) * cos(pi / 2)`
+
+## Question 2 
+
+You want to estimate $\int_0^\infty g(x) \, dx$ using draws
+`x <- rexp(n)` from the Exp(1) distribution. Which estimator is correct?
+
+1. `mean(g(x) * dexp(x))`
+1. `mean(g(x))`
+1. `mean(g(dexp(x)))`
+1. `mean(g(x) / dexp(x))`
+
+## Question 3 
+
+Let `x <- rexp(10000)`. What does `mean(x <= 2)` estimate?
+
+1. $P(X \le 2)$
+1. $\E{\min(X, 2)}$
+1. The density of $X$ at 2
+1. $\E{X} \times P(X \le 2)$
+
+## Question 4 
+
+You estimate $\theta = P(X > 3)$ by the sample mean of the indicators
+$\ind(X_i > 3)$. Why is `binom.test` preferred over `t.test` for the
+confidence interval?
+
+1. `t.test` cannot handle values of 0 and 1.
+1. `binom.test` intervals are always narrower.
+1. The indicators are Bernoulli, so a proportion interval applies exactly.
+1. The indicators are not identically distributed.
+
+## Question 5 
+
+With $n$ function evaluations in $k$ dimensions, grid-based integration has
+error rate $O(n^{-2/k})$, while Monte Carlo has error rate $O(n^{-1/2})$.
+
+For an integral with 8 dimensions ($k=8$), which method would be expected to have less error for a very large number of function evaluations (i.e. $n$ is large)?
+
+1. Grid-based
+2. Monte Carlo
+3. They would be about the same
+4. It depends on the function being integrated, not $k$ or $n$.
+

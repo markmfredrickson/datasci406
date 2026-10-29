@@ -1,0 +1,29 @@
+% Shared preamble for DATASCI 406 R Markdown beamer decks.
+% Included after \documentclass, before \begin{document}.
+%
+% Trimmed against actual usage across all decks: colortbl, booktabs, multirow
+% and nccmath were inherited from a template and are referenced by nothing.
+
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{array,upquote}
+
+\usetheme{metropolis}
+\usecolortheme[snowy]{owl}
+
+% Math shorthands used throughout the decks.
+\newcommand{\iid}{\overset{\text{iid}}{\sim}}
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\Cov}[2]{\text{Cov}\left(#1,#2\right)}
+\newcommand{\inP}{\overset{\text{P}}{\rightarrow}}
+\newcommand{\estf}{\hat f}
+% Indicator function: blackboard-bold 1 via bbm when installed
+% (sudo tlmgr install bbm bbm-macros), bold 1 until then.
+\IfFileExists{bbm.sty}{%
+  \usepackage{bbm}%
+  \newcommand{\ind}{\mathbbm{1}}%
+}{%
+  \newcommand{\ind}{\bm{1}}%
+}

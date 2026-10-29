@@ -1,0 +1,67 @@
+---
+title: "Monte Carlo Integration: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate --- Session 1"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+## Integrals as expectations
+
+We wish to estimate $\int_a^b g(x) \, dx$. Suppose $X$ is a random variable with:
+
+- Support $[a, b]$ (where either $a \rightarrow -\infty$ or $b \rightarrow \infty$)
+- Density $f(x)$ that is non-zero over $[a, b]$
+
+then
+$$\int_a^b g(x) \, dx = \int_a^b \frac{g(x)}{f(x)} f(x) \, dx = \E{h(X)}, \quad h(x) = g(x)/f(x)$$
+
+Sample from $X$ i.i.d. and estimate using $(1/n) \sum_{i=1}^n g(X_i)/f(X_i)$.
+
+**Special case**: if the target is already $\E{g(X)}$ for an $X$ we can sample, just sample and average --- the density is baked into the sampler (`r` functions; `d` gives the density).
+
+## Probabilities are expectations of indicators
+
+$$\ind(s) = \left\{ \begin{array}{lc} 1 &: s \text{ is true} \\ 0 &: s \text{ is false} \end{array} \right.
+\qquad \E{\ind(X \in A)} = P(X \in A)$$
+
+In R, indicators are free: `x <= 3`.
+
+The empirical CDF is the sample mean of indicators:
+$$\hat F_n(t) = \frac{1}{n} \sum_{i=1}^n \ind(X_i \le t)$$
+
+## Why it works
+
+Suppose $X_i \iid F$, $\E{g(X)} < \infty$, $\E{g(X)^2} < \infty$. Then
+$\hat \theta_n = \frac{1}{n} \sum_{i=1}^n g(X_i)$ is:
+
+- **Unbiased** for any $n$: $\E{\hat \theta_n} = \E{g(X)}$
+- **Consistent** (weak law of large numbers): $\hat \theta_n \overset{P}{\rightarrow} \E{g(X)}$
+- **Asymptotically Normal** (central limit theorem):
+$$\frac{\hat \theta_n - \theta}{\sigma/\sqrt{n}} \overset{D}{\rightarrow} N(0, 1)$$
+
+## Always report a confidence interval
+
+A Monte Carlo answer is an **estimate**, not an exact solution. By the CLT, an approximate $100 (1 - \alpha)\%$ interval is
+$$\hat \theta \pm t_{\alpha/2}(n - 1) \times \hat s / \sqrt{n}$$
+
+- Continuous $h(X_i)$ values: `t.test(hX)$conf.int`
+- Indicator values: `binom.test(sum(hits), n)$conf.int`
+
+The width shrinks like $1/\sqrt{n}$: **each extra digit of precision costs 100 times more samples.**
+
+## Error rates and dimension
+
+$$\Var{\hat \theta_n} = \frac{\tau^2}{n}, \quad \tau^2 = \Var{g(X)}
+\qquad \Rightarrow \qquad \text{error} = \tau \, n^{-1/2} = O(n^{-1/2})$$
+
+- $n$ sets the **rate**; $\tau$ sets the **constant**.
+- Grid methods: $O(n^{-2/k})$ in $k$ dimensions --- ties Monte Carlo at $k = 4$, loses beyond.
+- Monte Carlo's rate **does not depend on the dimension**: sample a random vector, apply $g$, average.
+

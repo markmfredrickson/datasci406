@@ -1,0 +1,126 @@
+---
+title: "Turn-in 2.4: Project Part D"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20260929)
+library(tidyverse)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+
+Worth 1 point for completion.
+
+Fill in the blanks in each code chunk and write your answers after each
+**Answer:**. Knit to HTML and upload the `.html` file to Canvas.
+
+A chunk with an unfilled blank shows an error when you knit. That is expected
+until you fill it in.
+
+The S&P 500 data from the project:
+
+```{r spy}
+load("../../data/spy.rda")
+logp <- log(spy$price)
+r <- diff(logp)
+```
+
+## Question 1 (D.1)
+
+Fill in the blanks, then plot the data next to 272 points from `rfaithful`.
+
+```{r d1}
+short <- faithful$eruptions < 3
+p <- mean(short)
+mu1 <- colMeans(faithful[short, ]);  S1 <- cov(faithful[short, ])
+mu2 <- __________________________;  S2 <- __________________________
+
+rmvn <- function(n, mu, Sigma) {
+  C <- chol(Sigma)
+  Z <- matrix(rnorm(2 * n), nrow = 2)
+  t(mu + ________ %*% Z)                # mu + C^T Z, one draw per column
+}
+rfaithful <- function(n) {
+  n1 <- rbinom(1, n, p)                  # how many short eruptions
+  x <- rbind(rmvn(n1, mu1, S1), rmvn(n - n1, ____, ____))
+  colnames(x) <- c("eruptions", "waiting")
+  x
+}
+
+# your plot of the data next to rfaithful(272) here
+
+p
+mu1["waiting"]                           # mean wait after a short eruption
+```
+
+**Checkpoint:** put the data next to 272 points from `rfaithful` on screen.
+
+## Question 2 (D.2a)
+
+Show that the mean of the mixture is $p\mu_1 + (1 - p)\mu_2$. Write a draw as
+$X = WU + (1 - W)V$, with $W \sim \text{Bernoulli}(p)$ independent of
+$U \sim N_2(\mu_1, \Sigma_1)$ and $V \sim N_2(\mu_2, \Sigma_2)$.
+
+$$\E{X} = \E{WU} + \E{(1 - W)V} = \E{W}\,\E{U} + \text{(blank 1)} = \text{(blank 2)}$$
+
+What goes in the two blanks?
+
+**Answer:**
+
+Which step uses independence?
+
+**Answer:**
+
+## Question 3 (D.2b)
+
+Compare the variance of `waiting` in each.
+
+```{r d2b}
+cov(faithful)
+cov(rfaithful(10000))
+p * S1 + (1 - p) * S2
+```
+
+Is the covariance of a mixture the weighted average of the component
+covariances? What does the weighted average leave out?
+
+**Answer:**
+
+## Question 4 (D.3a)
+
+Fill in the blanks, then plot 20 simulated paths with the data.
+
+```{r d3a}
+mu <- mean(r); sigma <- sd(r)
+rwalk <- function() logp[1] + cumsum(c(0, rnorm(length(r), ____, ____)))
+matplot(replicate(20, rwalk()), type = "l", lty = 1, col = "gray")
+lines(logp)
+```
+
+**Checkpoint:** put 20 simulated paths with the observed log price on screen.
+
+## Question 5 (D.3b, c, d)
+
+Fill in the blank. Both $p$-values use the same 1,000 simulated paths.
+
+```{r d3bc}
+drawdown <- function(L) min(L - cummax(L))
+abs_cor <- function(L) { a <- abs(diff(L)); cor(a[-1], a[-length(a)]) }
+walks <- replicate(1000, rwalk(), simplify = FALSE)
+dd <- sapply(walks, drawdown)
+ac <- sapply(walks, abs_cor)
+drawdown(logp)
+(1 + sum(dd <= drawdown(logp))) / 1001   # (b) larger drawdowns
+abs_cor(logp)
+(1 + sum(ac ____ abs_cor(logp))) / 1001  # (c) more clustering
+```
+
+(d) Which feature of the data does the random walk reproduce, and which does
+it miss?
+
+**Answer:**
+

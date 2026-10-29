@@ -1,0 +1,66 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+**DATASCI 406 FA 26, Quiz 1.4**
+
+**Name and Uniqname:**
+
+## Question 1 (1 point)
+
+You simulate $B = 999$ datasets under $H_0$ and find that **every** simulated
+value of the test statistic is smaller than the observed $t_{\text{obs}}$.
+What do you report? **Circle one.**
+
+1. $\hat p = 0$
+1. $\hat p = 1/1000$
+1. $\hat p = 1/999$
+1. $\hat p < 0.05$; the simulation cannot pin the value down any further.
+
+## Question 2 (1 point)
+
+$X_1, \ldots, X_{25}$ are independent draws from $N(\mu, 1)$; the statistic $T$
+is the **sample median**; $H_0 : \mu = 0$ against $H_1 : \mu = 0.35$; and the
+rejection region was fixed in advance as $T > 0.3$.
+
+```{r echo = TRUE}
+set.seed(406)
+null <- replicate(20000, median(rnorm(25, 0.00, 1)))
+alt  <- replicate(20000, median(rnorm(25, 0.35, 1)))
+round(c(A = mean(alt),      B = mean(null > 0.3),
+        C = mean(alt < 0.3), D = mean(alt > 0.3)), 3)
+```
+
+Which printed value is the **size** of this test, and which is its **power**
+against $\mu = 0.35$? Write one label in each blank.
+
+size $=$ \underline{\hspace{0.5in}} \qquad power $=$ \underline{\hspace{0.5in}}
+
+## Question 3 (3 points)
+
+$X_1, \ldots, X_{40}$ are independent $\text{Exp}(\text{rate} = \theta)$ with
+$\theta$ unknown. The test statistic is the 25% trimmed mean
+`mean(x, trim = 0.25)`, which has no convenient sampling distribution. The
+observed data give $t_{\text{obs}} = 1.39$.
+
+Suppose we have implemented a **two-sided level-0.05 test** of $H_0 : \theta = \theta_0$ against
+$H_1 : \theta \ne \theta_0$, for one particular $\theta_0$ using a Monte Carlo hypothesis test.
+The procedure is implemented as a function `test(t_obs, theta_0)` that returns
+`TRUE` if the hypothesis is rejected and `FALSE` if the hypothesis is not
+rejected.
+
+Using this function, describe how you would
+produce a **95% confidence interval for $\theta$**. Your answer must say both
+(i) what you would compute, in enough detail that someone could code it from
+your description, and (ii) why what you get is a 95% interval. You may suppose that $\theta$ is known to fall in some range $[a,b]$.
+
+\vspace{2.5in}
+
