@@ -1,0 +1,133 @@
+---
+title: "Module 3 Project, Part C: Resampling Structured Data"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20261103)
+library(tidyverse)
+```
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 3 - Resample, each in its own file. This is Part C. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+This part is turn-in 3.3, worth 1 point for completion. Knit it to HTML and upload the `.html` file to Canvas.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Part C uses the Capital Bikeshare data from Part A.
+
+```{r bikes}
+bikes <- read.csv("../../data/bikes.csv")
+n <- nrow(bikes)
+```
+
+# Part C: Resampling structured data
+
+Part A treated the 731 days as independent. C.1 asks whether 2012 was warmer
+than 2011, using the block bootstrap to keep nearby days together. C.2
+compares three ways to bootstrap a regression slope when the error variance
+changes with $x$, then resamples within each year to compare the two years.
+
+## C.1(a): A seasonal cycle and its residuals
+
+Temperature is not stationary: it follows a yearly cycle. Model it as a cycle
+plus a 2012 effect plus stationary noise $Z_t$,
+$$\text{temp}_t = \beta_0 + \beta_1 \, \text{y2012}_t + \text{cycle}(d_t) + Z_t,$$
+where $d_t$ is the day of the year and y2012 is 1 for days in 2012. The code
+below fits the model. The sines and cosines fit a smooth yearly cycle.
+
+```{r cycle}
+bikes$y2012 <- as.numeric(bikes$year == 2012)
+bikes$d <- as.numeric(format(as.Date(bikes$date), "%j"))   # day of the year
+fit_temp <- lm(temp ~ y2012 + sin(2 * pi * d / 365) + cos(2 * pi * d / 365) +
+                 sin(4 * pi * d / 365) + cos(4 * pi * d / 365), data = bikes)
+z <- resid(fit_temp)
+ggplot(data.frame(date = as.Date(bikes$date), temp = bikes$temp,
+                  fitted = fitted(fit_temp)), aes(date, temp)) +
+  geom_point(alpha = 0.4) + geom_line(aes(y = fitted))
+```
+
+1. Report the coefficient of `y2012` and its SE from `summary(fit_temp)`.
+2. Compute the lag-1 autocorrelation of the residuals `z`, and the
+   autocorrelations to lag 14. By about which lag are they near 0?
+
+## C.1(b): The block bootstrap
+
+`block_boot` is the moving block bootstrap from the deck. `effect(zs)` adds a
+resampled residual series `zs` to the fitted values and returns the refitted
+`y2012` coefficient. `lm.fit` refits with the same columns much faster than
+`lm`.
+
+```{r block-fns}
+block_boot <- function(x, stat, B, l) {
+  n <- length(x)
+  replicate(B, {
+    xs <- c()
+    while (length(xs) < n) {
+      i <- sample(n - l + 1, 1)
+      xs <- c(xs, x[i:(i + l - 1)])
+    }
+    stat(xs[1:n])
+  })
+}
+X <- model.matrix(fit_temp)
+effect <- function(zs) coef(lm.fit(X, fitted(fit_temp) + zs))[["y2012"]]
+```
+
+1. Compute the block bootstrap SE of the 2012 effect for
+   `ls <- c(1, 3, 5, 7, 10, 14, 21, 30, 45)` with $B = 2000$, and plot it
+   against $\ell$.
+2. Which $\ell$ gives about the SE from `summary`, and why? Choose an $\ell$
+   where the SE has leveled off.
+3. Report the 95% normal interval for the 2012 effect with your $\ell$, and
+   with the SE from `summary`. Was 2012 warmer than 2011?
+
+## C.2(a): Three bootstraps for a slope
+
+Now fit `casual ~ temp` to all days. As in Part A, treat the days as
+independent.
+
+```{r casual}
+fit_casual <- lm(casual ~ temp, data = bikes)
+x <- bikes$temp
+y <- bikes$casual
+y_hat <- fitted(fit_casual)
+e <- resid(fit_casual)
+ggplot(data.frame(temp = x, e), aes(temp, e)) + geom_point(alpha = 0.4) +
+  geom_hline(yintercept = 0, lty = 2)
+far <- order(-abs(x - mean(x)))[1:10]   # the 10 days farthest from the mean temp
+```
+
+The spread of the residuals grows with temperature.
+
+1. Bootstrap the slope `cov(x, y) / var(x)` with $B = 2000$ by resampling
+   cases, resampling errors, and the wild bootstrap. Report the three SEs
+   and the SE from `summary(fit_casual)`.
+2. The days farthest from the mean temperature have the most influence on
+   the slope. Compare the mean $|e_i|$ for the 10 days in `far` with the mean
+   $|e_i|$ for all days.
+3. Use (2) to explain why resampling errors disagrees with the wild
+   bootstrap here.
+
+## C.2(b): Comparing the two years
+
+Did ridership grow from 2011 to 2012? Treat the two years as strata.
+`bikes |> group_by(year) |> slice_sample(prop = 1, replace = TRUE)` draws one
+bootstrap sample that resamples days within each year.
+
+1. Compute the median of `total` in each year, and the difference, 2012
+   minus 2011.
+2. Bootstrap the difference with $B = 2000$, resampling days within each
+   year.
+3. Report the bootstrap SE and the 95% percentile interval. Why resample
+   within each year rather than all 731 days?
+
