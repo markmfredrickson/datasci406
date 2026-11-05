@@ -1,0 +1,98 @@
+---
+pagetitle: "Quiz 2.5: Importance Resampling and MCMC"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 2.5**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+Importance resampling draws $Y_1, \ldots, Y_m$ from $g$ and resamples them
+with probabilities
+$$\omega_i = \frac{f^*(Y_i)/g(Y_i)}{\sum_j f^*(Y_j)/g(Y_j)},$$
+where $f = c\,f^*$ and $c$ is unknown. Why does it still draw from $f$?
+
+1. Using $f$ in place of $f^*$ multiplies the top and bottom of $\omega_i$ by
+   $c$, so $\omega_i$ does not change.
+1. Using $f$ in place of $f^*$ multiplies every $\omega_i$ by $c$, which would make $c\omega_i >1$.
+1. Using $f$ would lead to bias. Using $f^*$ corrects the bias.
+1. It does not. $c$ must be computed first, for example with `integrate()`.
+
+### Solution
+
+**Answer: 1.**
+
+## Question 2 (1 point)
+
+The chain $X(t) = 0.9\, X(t-1) + \sqrt{1 - 0.9^2}\, Z(t)$, with independent
+$Z(t) \sim N(0, 1)$, has stationary distribution $N(0, 1)$. It starts at
+$X(0) = 10$. Which statement is true?
+
+1. $X(1) \sim N(0, 1)$, because $N(0, 1)$ is stationary.
+1. The early $X(t)$ are not $N(0, 1)$, so we drop them as burn in.
+1. The draws are dependent, so their average cannot converge to $E(X) = 0$.
+1. The chain never reaches $N(0, 1)$, because it remembers its start.
+
+### Solution
+
+**Answer: 2.** Stationarity says that *if* $X(t-1) \sim N(0, 1)$ then
+$X(t) \sim N(0, 1)$. With $X(0) = 10$, $E(X(1)) = 9$, so option 1 is false.
+Option 3 is wrong because MCMC averages converge for dependent draws when the
+chain has the properties in the video. Option 4 is wrong because each step
+keeps only 90% of the distance from 0, so the start is forgotten after about
+40 steps.
+
+## Question 3 (1 point)
+
+Consider a *symmetric Metropolis-Hastings algorithm* where $g(x \mid X^*) = g(X^* \mid x)$. At step $t$ with previous value $X(t-1) = x$ it evaluates a proposal $X^*$ using the expression:
+$$U \le \frac{f^*(X^*)}{f^*(x)} \cdot \frac{g(x \mid X^*)}{g(X^* \mid x)} = \frac{f^*(X^*)}{f^*(x)}$$
+where $U$ is an independent uniform on $(0,1)$. 
+
+In one step, $f^*(X^*)/f^*(x) = 0.5$ and $U = 0.7$. What happens?
+
+1. $X(t) = X^*$.
+1. $X(t) = x$.
+1. $X(t) = U$.
+1. Nothing is recorded for time $t$, and a new proposal is drawn for $t+1$.
+
+### Solution
+
+**Answer: 2.** $U = 0.7 > 0.5$, so the chain stays at $x$ and records it
+again.
+
+## Question 4 (1 point)
+
+A Gibbs sampler targets the bivariate normal with means 0, variances 1 and
+covariance 0.5, so $X_1 \mid X_2 = t \sim N(0.5\,t,\; 0.75)$. The current
+state is $(x_1, x_2) = (3, 2)$, and the next step updates $x_1$. From which
+distribution is the new $x_1$ drawn?
+
+\noindent\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llll@{}}
+1. $N(0, 1)$ & 2. $N(1, 0.75)$ & 3. $N(1.5, 0.75)$ & 4. $N(1, 1)$
+\end{tabular*}
+
+### Solution
+
+**Answer: 2.** The full conditional of $x_1$ is evaluated at the current
+$x_2 = 2$, so the mean is $0.5 \times 2 = 1$. Option 1 is the marginal,
+option 3 conditions on the old $x_1$, and option 4 uses the marginal
+variance.
+
+**Rubric.** 1 pt per question, no partial credit.

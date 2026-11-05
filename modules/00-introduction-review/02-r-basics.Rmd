@@ -1,0 +1,87 @@
+---
+title: "Introduction to R"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 0 (optional)"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%",
+                      fig.width = 6, fig.height = 2.4)
+options(width = 60, digits = 4)
+library(tidyverse)
+```
+
+## What is R?
+
+When we say, "R" we are referring to three interrelated things:
+  
+- A language
+- A community
+- An implementation or environment
+  
+## R: The language
+
+R is a **statistical programming language**: 
+  
+- R is specifically design to load, manipulate, and analyze tabular data (versus Python, Java, C++) 
+- We can use R to easily code up new algorithms, methods (versus Stata, SAS) 
+- We interact with R via scripts containing textual input (versus Minitab, Excel) 
+  
+Key concepts:
+  
+- Store data in variables, usually **vectors**, **matrices**, and **data frames**.
+- Manipulate data using **functions**, **iteration**, and **high level declarations**.
+- Process data using **scripts** and **RMarkdown documents**.
+  
+## R: The community
+
+The **Comprehensive R Archive Network** is a collection of **user submitted packages**, currently more than **20,000**.
+  
+R is supported via: textbooks, official mailing lists, StackOverflow, R Bloggers, YoutTube, etc (though it can be hard to Google for sometimes). 
+  
+R is being adopted by Fortune 500 companies, government, start ups, applied academic disciplines, many others.
+
+## R: The environment
+
+The official R implementation consists of an **command line interface** for entering R commands, a **batch file processor** for handling scripts, and a basic **graphical user interface** for handling plots. 
+  
+We will be using **RStudio**, installed on your own machine, which adds:
+  
+- Projects to handle multiple R files, data files.
+- More complete file editor with syntax completion
+- Help system and graph/plot display
+- Integration with external software development tools
+- RMarkdown to HTML and PDF support
+  
+## RMarkdown
+
+RMarkdown is a **plain text file** that contains **structured text** and **embedded R code**. It can be **processed** into a PDF or HTML file. The R is **evaluated** and the **results added to the file**, including plots.  
+  
+Some great features:
+  
+- Put the description and the implementation in one place.
+- Inline R code allows printing out values -- no more copy and paste errors.
+- Easy to provide instructions and starter code for projects.
+- Includes a math language for writing up analytical results.
+
+## DATASCI 406 and R
+
+Why do we use R in DATASCI 406 (instead of another language):
+
+- Algorithms written in R tend to be slower, but speed is not our primary goal, understanding is.
+- R contains useful distributions that we can sample from when doing Monte Carlo
+- Reference implementations to compare/use for many algorithms
+- R's baked in **vectorization** allows for focusing on the math and stats instead of programming overhead
+- Great data manipulation and visualization tools
+  
+##  {.standout}
+
+Exercises

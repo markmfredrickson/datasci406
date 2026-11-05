@@ -1,0 +1,112 @@
+---
+title: "Leave One Out: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample, Session 2"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+set.seed(20261029)
+
+jack_se <- function(t_loo) {
+  n <- length(t_loo)
+  sqrt((n - 1) / n * sum((t_loo - mean(t_loo))^2))
+}
+mdeq <- read.csv("../../data/flint_mdeq.csv")
+x <- mdeq$lead
+n <- length(x)
+med_loo <- sapply(1:n, function(i) median(x[-i]))
+
+vt <- read.csv("../../data/flint_vt.csv")
+lx <- log(vt$first_draw)
+ly <- log(vt$flush_2min)
+n_vt <- nrow(vt)
+B <- 4000
+r <- cor(lx, ly)
+r_loo <- sapply(1:n_vt, function(i) cor(lx[-i], ly[-i]))
+se_r <- jack_se(r_loo)
+boot_cor <- replicate(B, {
+  i <- sample(n_vt, replace = TRUE)
+  cor(lx[i], ly[i])
+})
+boot_w <- replicate(B, {
+  i <- sample(n_vt, replace = TRUE)
+  a <- lx[i]
+  b <- ly[i]
+  (cor(a, b) - r) / jack_se(sapply(1:n_vt, function(j) cor(a[-j], b[-j])))
+})
+pct <- quantile(boot_cor, c(0.025, 0.975), names = FALSE)
+bt <- r - se_r * quantile(boot_w, c(0.975, 0.025), names = FALSE)
+ci <- function(v) sprintf("[%.3f, %.3f]", v[1], v[2])
+
+flint <- data.frame(lx, ly)
+loo_mse <- function(d) {
+  fit <- lm(ly ~ poly(lx, d), data = flint)
+  mean((resid(fit) / (1 - hatvalues(fit)))^2)
+}
+train_mse <- function(d) mean(resid(lm(ly ~ poly(lx, d), data = flint))^2)
+```
+
+## The jackknife SE
+
+$T_{(i)}$ is the statistic computed without $x_i$, using `x[-i]`.
+
+$$\widehat{\text{SE}}_{\text{jack}}(T) = \sqrt{\frac{n - 1}{n} \sum_{i=1}^n \left(T_{(i)} - \bar T_{(\cdot)}\right)^2}, \qquad \bar T_{(\cdot)} = \frac{1}{n} \sum_{i=1}^n T_{(i)}.$$
+
+- For the mean, the sample variance of the $T_{(i)}$ is only $s^2 / (n - 1)^2$. The factor $(n - 1)/n$ makes the SE exactly $s / \sqrt n$.
+- $n$ evaluations and no Monte Carlo error. The bootstrap takes $B$ evaluations.
+- Flint, correlation of logged first draw and flushed: jackknife SE `r sprintf("%.4f", se_r)`, bootstrap SE `r sprintf("%.4f", sd(boot_cor))`.
+
+## Failure case: the median
+
+- The leave-one-out medians take two values, $x_{(m)}$ and $x_{(m+1)}$ for $n = 2m$, or three for odd $n$.
+- So the jackknife SE depends only on the gap between the two middle observations.
+- MDEQ: `r sum(x == median(x))` of `r n` samples equal the median, so every $T_{(i)}$ is `r median(x)` ppb and the jackknife SE is `r jack_se(med_loo)`.
+- For normal data the ratio of jackknife to true SE tends to an Exponential(1), not to 1.
+- The jackknife needs a smooth $T$: a mean, variance, correlation or regression coefficient. For quantiles, bootstrap.
+
+## The bootstrap-$t$ interval
+
+Studentize each bootstrap replicate with an SE from **its own** bootstrap sample:
+$$W^*_b = \frac{T^*_b - T}{\widehat{\text{SE}}^*_b}, \qquad \left[T - \widehat{\text{SE}} \, W^*_{1 - \alpha/2}, \; T - \widehat{\text{SE}} \, W^*_{\alpha/2}\right].$$
+
+- A nested bootstrap costs $B \times B_2$ evaluations. A jackknife in each sample costs $B \times n$.
+
+| Flint correlation, $r =$ `r sprintf("%.3f", r)` | 95% interval |
+|---|:-:|
+| percentile | `r ci(pct)` |
+| bootstrap-$t$ | `r ci(bt)` |
+
+- The SE of a correlation shrinks as it grows, so the bootstrap-$t$ reaches further down.
+
+## Cross-validation
+
+- **Training error** scores $\hat f$ on the points that chose it, so it is optimistic.
+- **Leave-one-out**: average $L(Y_i, \hat f_{(i)}(X_i))$. For least squares, one fit gives every $e_i / (1 - h_{ii})$.
+- **$K$-fold**: fit to $K - 1$ random folds, predict the one left out. Use the same folds for every model.
+
+| Flint, `poly(lx, d)` | $d = 1$ | $d = 5$ | $d = 10$ |
+|---|:-:|:-:|:-:|
+| training MSE | `r sprintf("%.3f", train_mse(1))` | `r sprintf("%.3f", train_mse(5))` | `r sprintf("%.3f", train_mse(10))` |
+| leave-one-out MSE | `r sprintf("%.3f", loo_mse(1))` | `r sprintf("%.3f", loo_mse(5))` | `r sprintf("%.3f", loo_mse(10))` |
+
+## Choosing a loss
+
+With $e = y - \hat y$, a constant prediction $c$ that minimizes each loss is
+
+| loss | $L(e)$ | best $c$ |
+|---|:-:|:-:|
+| squared | $e^2$ | mean |
+| absolute | $\lvert e \rvert$ | median |
+| pinball | $\tau e$ if $e > 0$, $(1 - \tau)(-e)$ if $e \le 0$ | $\tau$ quantile |
+
+- With $\tau = 0.9$, predicting one unit too low costs 9 times as much as one unit too high.
+- Write down what each kind of error costs, and use that loss. Cross-validation works with any loss.

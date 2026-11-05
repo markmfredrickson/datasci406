@@ -1,0 +1,85 @@
+---
+title: "Transformations, Sums, and Mixtures: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate, Session 2"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+library(ggplot2)
+```
+
+## Transformations
+
+When $Q(u)$ is hard to find, build $X$ from variables we can already draw.
+
+- **Easy direction**: define $X = g(Y)$, e.g. $\exp(Y)$, $\sum Z_i^2$, $Z / \sqrt{V/k}$.
+- **Hard direction**: given $f(x)$, find a $g$ that produces it.
+- To prove it works, **show the CDFs match**.
+
+Tips for the hard direction:
+
+- Reduce to a simpler case.
+- Write down $f(x)$ or $F(x)$ and look for patterns.
+- Condition on an event, then generate the event.
+- Change variables.
+
+## Example: the Laplace distribution
+
+$$f(x) = \tfrac{1}{2} \exp\{-|x - \theta|\}$$
+
+1. **Shift**: $Y \sim \text{Laplace}(\theta)$ is $X + \theta$ with $X \sim \text{Laplace}(0)$.
+1. **Symmetry**: $P(X > 0) = P(X < 0) = 1/2$.
+1. **Condition**: $X \mid X > 0$ is $\text{Exp}(1)$, and $X \mid X < 0$ is $-\text{Exp}(1)$.
+
+So $X = SM + \theta$, with a random sign $S = \pm 1$ and $M \sim \text{Exp}(1)$.
+
+In R: `sample(c(-1, 1), n, replace = TRUE) * rexp(n) + theta`.
+
+## Sums of random variables
+
+For independent $X$ and $Y$, $Z = X + Y$ has the **convolution** density
+$$f_Z(z) = \int f_X(z - y) f_Y(y) \, dy.$$
+
+- The integral is often hard. **Sampling is easy**: draw $X$ and $Y$, add them.
+- **Gamma**: $\sum_{i=1}^k E_i \sim \text{Gamma}(k, \lambda)$ for $E_i \iid \text{Exp}(\lambda)$, integer $k$ only.
+- **Binomial**: $\sum_{i=1}^m B_i \sim \text{Bin}(m, p)$ for $B_i \iid \text{Bernoulli}(p)$.
+- Each draw costs $k$ (or $m$) uniforms, so large sums are slow.
+
+## A sum is not a mixture
+
+$Y_1 \sim N(-2, 1)$ and $Y_2 \sim N(2, 1)$, independent.
+
+```{r fig.width=6, fig.height=2}
+ggplot() + xlim(-5, 5) +
+  stat_function(aes(linetype = "Average (Y1 + Y2)/2"),
+                fun = function(x) dnorm(x, sd = sqrt(1/2))) +
+  stat_function(aes(linetype = "50/50 mixture"),
+                fun = function(x) 0.5 * dnorm(x, -2) + 0.5 * dnorm(x, 2)) +
+  labs(x = "x", y = "density", linetype = NULL) +
+  theme_bw(base_size = 9)
+```
+
+The **sum** combines the variables. The **mixture** combines the CDFs.
+
+## Mixtures
+
+$$F(x) = \sum_{i=1}^k a_i F_i(x), \qquad 0 \le a_i \le 1, \quad \sum_{i=1}^k a_i = 1$$
+
+- A valid CDF, with density $f(x) = \sum a_i f_i(x)$.
+- The quantile function is usually **not** available, even when every $Q_i$ is.
+
+Two readings, two samplers:
+
+- **Latent variable**: draw $C$ with $P(C = i) = a_i$, then draw $X$ from $F_C$.
+- **Random parameter**: draw $\theta \sim G$, then draw $X$ from $F(x ; \theta)$.
+
+The random parameter can be continuous: $F(x) = \int F(x ; \theta) \, g(\theta) \, d\theta$.

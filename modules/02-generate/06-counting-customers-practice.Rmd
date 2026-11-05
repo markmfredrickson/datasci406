@@ -1,0 +1,316 @@
+---
+pagetitle: "Module 2 Practice Exam"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+
+<!-- Numbers in the solutions come from 06-counting-customers.Rmd as rendered
+     with its seed, 20261015. Same format as Exam 2: Parts A-E are 8 points
+     each (two 1-point circle-one items and a 2 + 2 + 2 written item), Part F
+     is two 5-point questions. -->
+
+**DATASCI 406 FA 26 --- Module 2 Practice Exam**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+This practice exam asks about the Counting Customers practice project. Exam 2
+has the same format and asks the same kinds of question about your own
+project, so work this one with your printed practice project in front of you.
+
+80 minutes. 50 points. Paper notes only. No electronic devices.
+
+# Part A: Inversion (8 points)
+
+## Question 1 (1 point)
+
+`rquit` takes the ceiling of $\log U / \log(1 - p)$. Without the ceiling,
+what would it draw? Circle one.
+
+1. An exponential with rate $-\log(1 - p)$.
+1. The same geometric distribution.
+1. The geometric distribution shifted down by one.
+1. Negative values, since $\log U < 0$.
+
+## Question 2 (1 point)
+
+In Part A your QQ plot for $J$ has many points stacked at the same integer
+heights, not a smooth line. Does this mean the sampler is wrong? Circle one.
+
+1. No. Both sets of quantiles are integers, so many points coincide. The
+   check is whether they sit on the 45 degree line.
+1. Yes. A correct sampler gives a smooth line.
+1. Yes. Discrete variables cannot be checked with a QQ plot.
+1. No, but only because 10,000 draws is a large sample.
+
+## Question 3 (6 points)
+
+**(i)** (2 points) Show that if $E$ is exponential with rate $-\log(1 - p)$,
+then $\lceil E \rceil$ has the distribution of $J$. Hint: find
+$P(\lceil E \rceil > j)$.
+
+\vspace{1.5in}
+
+\newpage
+
+**(ii)** (2 points) Suppose in Part A you had compared your draws with
+`qgeom(u, p)`, without the $+1$. Describe what the QQ plot would show, and
+what you would conclude from it.
+
+\vspace{1.3in}
+
+**(iii)** (2 points) Part A checked your sampler against `qgeom`, which R
+provides. Describe two ways to check a sampler for a
+distribution R has no functions for at all.
+
+\vspace{1.3in}
+
+\newpage
+
+# Part B: Mixtures (8 points)
+
+## Question 4 (1 point)
+
+In Part B you drew $p$ and then $J \mid p$. What kind of construction
+is the distribution of $J$? Circle one.
+
+1. A mixture, with a random parameter $p$.
+1. A sum of independent geometric variables.
+1. A convolution of a beta and a geometric, $p + J$.
+1. A transformation $J = h(p)$ for a fixed function $h$.
+
+## Question 5 (1 point)
+
+In Part B the mean of your 10,000 draws of $J$ was about 195, and the
+largest was over 330,000. You rerun with 1,000,000 draws. What happens to the sample
+mean? Circle one.
+
+1. It does not settle down. It tends to be larger, and depends on the few
+   largest draws.
+1. It settles near 195.
+1. It settles near $1/\E{p} = (a + b)/a \approx 4$.
+1. It settles near $\E{1/p}$, a finite number.
+
+## Question 6 (6 points)
+
+**(i)** (2 points) If every customer had the average quitting probability
+$a/(a + b) \approx 0.25$, the chance of staying past 100 purchases would be
+$0.75^{100} \approx 5 \times 10^{-13}$. Part B found $P(J > 100) \approx 0.05$.
+Explain why letting $p$ vary across customers makes long stays so much more
+likely.
+
+\vspace{1.5in}
+
+\newpage
+
+**(ii)** (2 points) Given $p$, $\E{J \mid p} = 1/p$. Show that
+$\E{J} = \E{1/p}$ is infinite when $p \sim \text{Beta}(a, b)$ with $a < 1$.
+Hint: look at the integral near $p = 0$.
+
+\vspace{1.5in}
+
+**(iii)** (2 points) Part B checked the tail $P(J > j)$ at $j = 1$, 10 and 100
+against the formula, and did not compare the sample mean with anything. Why
+is the mean useless as a check here, and why do the tail probabilities work?
+
+\vspace{1.3in}
+
+\newpage
+
+# Part C: Accept-reject (8 points)
+
+## Question 7 (1 point)
+
+In Part C a candidate $Y$ is accepted when $U \le (1 - Y)^{b - 1}$. Which
+candidates are most likely to be rejected? Circle one.
+
+1. Candidates near 1.
+1. Candidates near 0.
+1. Candidates near the mode of $f$.
+1. None. Every candidate has the same chance.
+
+## Question 8 (1 point)
+
+Could importance resampling with the same candidate density
+$g(p) = a p^{a - 1}$ have drawn from the Beta in Part C? Circle one.
+
+1. Yes. $g$ is positive wherever $f$ is, and the weights $f/g$ are bounded.
+1. No. Importance resampling needs uniform candidates.
+1. No. Importance resampling needs the normalizing constant $B(a, b)$.
+1. No. $f$ is unbounded near 0.
+
+## Question 9 (6 points)
+
+**(i)** (2 points) In Part C you accepted 4,759 of 10,000 candidates, with a
+95\% interval of $(0.466, 0.486)$, against $1/c = a B(a, b) \approx 0.475$.
+Is the difference between 0.476 and 0.475 a sign of a problem? What would a
+problem look like?
+
+\vspace{1.3in}
+
+\newpage
+
+**(ii)** (2 points) Suppose $b$ had been 0.5 instead of 2.426, with $a$
+unchanged. Does the bound on $f/g$ in Part C still hold? What goes wrong, and what
+kind of candidate density might work instead?
+
+\vspace{1.5in}
+
+**(iii)** (2 points) Part C drew the Beta by accept-reject but drew the
+candidate $g$ by inversion. Why is inversion the natural choice for $g$ but
+not for the Beta?
+
+\vspace{1.3in}
+
+\newpage
+
+# Part D: The purchase process (8 points)
+
+## Question 10 (1 point)
+
+`purchases` draws each purchase time from the one before it. Which
+factorization of the joint distribution of the purchase times does this use?
+Circle one.
+
+1. $f(t_1) f(t_2 \mid t_1) f(t_3 \mid t_2) \cdots$, each time depending only
+   on the one before.
+1. $f(t_1) f(t_2) f(t_3) \cdots$, since the times are independent.
+1. $f(t_1 \mid t_2, t_3, \ldots) f(t_2 \mid t_3, \ldots) \cdots$, starting
+   from the last purchase.
+1. None. The times are drawn together as a vector.
+
+## Question 11 (1 point)
+
+Your simulated data set in Part D had 1,386 customers with no repeat
+purchase, and the real data has 1,411. What would tell you whether a gap this
+size is a problem? Circle one.
+
+1. Repeat the simulation many times and see whether 1,411 falls in the
+   middle 95\% of the simulated counts.
+1. A $t$-test comparing the simulated and real counts of repeat purchases.
+1. One simulation with ten times as many customers.
+1. Nothing. Any gap means the model is wrong.
+
+## Question 12 (6 points)
+
+**(i)** (2 points) Over $t$ weeks an active customer's number of purchases
+is Poisson($\lambda t$), which R can draw in one call. Why does `purchases`
+draw the gaps one at a time instead?
+
+\vspace{1.3in}
+
+\newpage
+
+**(ii)** (2 points) Suppose you repeated the Part D simulation 100 times and
+took the middle 95\% of the number of customers with no repeat purchase. This
+treats the paper's $r$, $\alpha$, $a$ and $b$ as the truth, but they are
+estimates from these same 2,357 customers. Would the range be wider or
+narrower if it allowed for that? Explain.
+
+\vspace{1.3in}
+
+**(iii)** (2 points) Your Part D table matched the real counts of repeat
+purchases closely. Name one thing the model claims about customers that this
+bar chart does not check, and say where in the project it is checked.
+
+\vspace{1.3in}
+
+\newpage
+
+# Part E: Gibbs sampling (8 points)
+
+## Question 13 (1 point)
+
+The posterior of $(\lambda, p)$ for one customer is not a standard
+distribution. Why could Part E still use a Gibbs sampler? Circle one.
+
+1. With $Z$ added, each full conditional is a standard distribution.
+1. The posterior is a gamma times a beta.
+1. Gibbs sampling does not need the full conditionals.
+1. Customer 1 has only two repeat purchases.
+
+## Question 14 (1 point)
+
+Part E checked the Gibbs sampler against a closed form. Without one, you
+could check it by importance resampling: draw $(\lambda, p)$ from the priors
+and weight each draw by the likelihood. For which customer would this work
+worst? Circle one.
+
+1. A customer with many repeat purchases, like customer 6 with $x = 7$.
+1. A customer with no repeat purchases.
+1. Customer 1.
+1. It works equally well for all of them.
+
+## Question 15 (6 points)
+
+**(i)** (2 points) Explain in words why
+$$P(Z = 1 \mid \lambda, p) = \frac{(1 - p)\, e^{-\lambda (T - t_x)}}{p + (1 - p)\, e^{-\lambda (T - t_x)}}$$
+gets smaller as $T - t_x$, the time since the last purchase, gets longer.
+What do the two terms in the denominator stand for?
+
+\vspace{1.5in}
+
+\newpage
+
+**(ii)** (2 points) At the end of the project, the model predicted about 1.04
+holdout purchases per customer with $x = 2$, and they made 1.39. The paper's
+equation (10), computed with no simulation at all, also gives 1.04. Is the gap
+Monte Carlo error, a mistake in the simulation code, chance in which 214 customers we happened to
+observe, or the model? Use the fact that the standard deviation of `x_star`
+among these customers is 1.84 ($\sqrt{214} \approx 14.6$).
+
+\vspace{1.8in}
+
+**(iii)** (2 points) Describe one way the model could be wrong that would make
+customers with $x = 2$ buy more in the holdout period than it predicts.
+
+\vspace{1.3in}
+
+\newpage
+
+# Part F: Big picture (10 points)
+
+## Question 16 (5 points)
+
+**Choose a sampler.** For each target below, name the method from this module
+you would try first, and say in a phrase why. One point each.
+
+1. The Pareto distribution, with $F(x) = 1 - x^{-k}$ for $x \ge 1$.
+1. The number of purchases a customer makes in 39 weeks under the full model,
+   given `rgamma`, `rbeta` and your `purchases`.
+1. A point chosen uniformly in the unit disk, given `runif`.
+1. A pair $(\log\lambda, \text{logit}\, p)$ that is bivariate normal with
+   correlation 0.3, given `rnorm`.
+1. The posterior of $(r, \alpha, a, b)$ given all 2,357 customers, known only
+   up to a constant, with no full conditional you can draw from.
+
+\vspace{2.5in}
+
+\newpage
+
+## Question 17 (5 points)
+
+**Find an example.** Point to one place in the practice project that does
+each of the following, and say in a phrase what makes it one. One point each.
+
+1. A sampler for a discrete distribution by inversion.
+1. A latent variable that is never observed.
+1. A sampler that rejects some of its candidates.
+1. A process simulated one step at a time, each step given the one before.
+1. Checking a Monte Carlo answer against something computed another way.
+
+\vspace{3in}
+

@@ -1,0 +1,95 @@
+---
+pagetitle: "Quiz 2.3: Rejection and Accept-Reject Sampling"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+
+**DATASCI 406 FA 26, Quiz 2.3**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+$X \sim \text{Poisson}(3)$ and $Y = X \mid X \text{ is odd}$. About half of
+Poisson(3) draws are odd. Which code produces 1000 draws of $Y$?
+
+1. `x <- rpois(1000, 3); x[x %% 2 == 1]`
+1. `x <- rpois(3000, 3); x[x %% 2 == 1][1:1000]`
+1. `2 * rpois(1000, 3) + 1`
+1. `x <- rpois(1000, 3); x[x %% 2 == 0] <- x[x %% 2 == 0] + 1; x`
+
+## Question 2 (1 point)
+
+You are using accept-reject to draw from the half-normal distribution, $f(x) = 2\phi(x)$ for $x \ge 0$ (the target). The candidates
+come from Exp(1), and $c = \sqrt{2e/\pi}$:
+
+```{r, echo = TRUE, eval = FALSE}
+f <- function(x) 2 * dnorm(x)
+g <- function(x) dexp(x)
+c <- sqrt(2 * exp(1) / pi)
+```
+
+Which line of code draws 1000 candidates and keeps draws from $f$?
+
+1. `y <- runif(1000); w <- runif(1000); y[w < f(y) / (c * g(y))]`
+1. `y <- rexp(1000); w <- rexp(1000); y[w < f(y) / (c * g(y))]`
+1. `y <- rexp(1000); w <- runif(1); y[w < f(y) / (c * g(y))]`
+1. `y <- rexp(1000); w <- runif(1000); y[w < f(y) / (c * g(y))]`
+
+## Question 3 (1 point)
+
+Again using accept-reject, the target is $f(x) = 2x$ on $[0, 1]$ and the candidate is $g(x) = 1$ on
+$[0, 1]$. What is the smallest valid $c$, and about what fraction of
+candidates is accepted?
+
+1. $c = 1$, and every candidate is accepted.
+1. $c = 2$, and about half are accepted.
+1. $c = 2$, and about two thirds are accepted.
+1. $c = 1/2$, and about half are accepted.
+
+## Question 4 (1 point)
+
+Again using accept-reject, the target is Exp(1), $f(x) = e^{-x}$ for
+$x \ge 0$. Each panel shows the ratio $f(x)/g(x)$ for a candidate density
+$g$. Which candidate can be used to draw from $f$? Circle the panel number.
+
+```{r q4-plot, fig.width = 7, fig.height = 1.9, out.width = "100%"}
+x <- seq(0.001, 5, by = 0.001)
+f <- exp(-x)
+cands <- list(
+  list(quote(paste("1.  ", g == U(0, 2))), ifelse(x <= 2, f / 0.5, NA)),
+  list(quote(paste("2.  ", g(x) == frac(x, 4) * e^{-x/2})), f / (x * exp(-x / 2) / 4)),
+  list(quote(paste("3.  ", g(x) == frac(1, 2) * e^{-x/2})), f / (exp(-x / 2) / 2)),
+  list(quote(paste("4.  ", g(x) == frac(4, sqrt(2 * pi)) * e^{-2 * x^2})),
+       f / (4 * exp(-2 * x^2) / sqrt(2 * pi)))
+)
+par(mfrow = c(1, 4), mar = c(2.6, 2.2, 2.6, 0.4), mgp = c(1.4, 0.4, 0),
+    cex = 0.65, las = 1)
+for (i in seq_along(cands)) {
+  plot(x, cands[[i]][[2]], type = "l", lwd = 2, ylim = c(0, 5), xlim = c(0, 5),
+       xlab = "x", ylab = "", main = cands[[i]][[1]])
+  if (i == 1) {
+    rect(2, -1, 6, 6, col = "gray85", border = NA)
+    text(3.5, 2.5, "g = 0")
+    box()
+  }
+}
+```
+
