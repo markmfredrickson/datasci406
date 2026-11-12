@@ -1,0 +1,319 @@
+---
+title: "Module 2 Project: Writing Samplers"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(20260929)
+library(tidyverse)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+
+# Directions
+
+These 5 sections follow the 5 substantive parts of Module 2 - Generation. Complete each section, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+ 
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Part A: Inversion
+
+## A.1
+
+The generator
+$$x_{k+1} = 65539\, x_k \bmod 2^{31}, \qquad u_k = x_k / 2^{31},$$
+is called RANDU.
+
+Write `randu(seed, n)`, which returns $x_1, \ldots, x_n$ starting from
+$x_0 = {}$`seed`. The mod operator in R is `%%`.
+
+(a) Print $x_1, \ldots, x_{10}$ for seed 406. What do all ten have in common?
+
+(b) Make a QQ plot of $u_1, \ldots, u_{30000}$ against $U(0, 1)$.
+
+(c) The function below groups draws into consecutive triples
+$(u_1, u_2, u_3), (u_4, u_5, u_6), \ldots$ and plots them as points in the
+unit cube. Run it on your 30,000 RANDU draws and on 30,000 draws from
+`runif`. How do the two plots differ?
+
+```{r plot-triples}
+plot_triples <- function(u) {
+  m <- matrix(u, ncol = 3, byrow = TRUE)
+  colnames(m) <- c("x", "y", "z")
+  lattice::cloud(z ~ x + y, data = as.data.frame(m), pch = 20, cex = 0.1)
+}
+```
+
+## A.2
+
+`airquality$Wind` holds 153 daily average wind speeds (mph) at LaGuardia
+Airport, May to September 1973. We model wind speed with the **log-logistic**
+distribution, which has scale $\alpha > 0$, shape $\beta > 0$ and CDF
+$$F(x) = \frac{1}{1 + (x / \alpha)^{-\beta}}, \qquad x > 0.$$
+R has no functions for this distribution.
+
+(a) Find the quantile function $Q(u)$, and write `rllogis(n, alpha, beta)`.
+Check 10,000 draws with $\alpha = 10$ and $\beta = 5$ with a QQ plot against
+your $Q$, as in video 1. `geom_qq` passes extra parameters to the quantile
+function through `dparams`, for example
+`geom_qq(distribution = qllogis, dparams = list(alpha = 10, beta = 5))`.
+
+(b) The method of moments (module 1) estimates parameters by setting the
+model's moments equal to the sample's and solving. **Quantile matching** does
+the same with quantiles. With $\hat q_p$ the sample $p$ quantile
+(`quantile(x, p)`), solve
+$$Q(1/2) = \hat q_{0.5}, \qquad Q(3/4) = \hat q_{0.75}$$
+for $\alpha$ and $\beta$. This gives the estimators $\hat\alpha$ and
+$\hat\beta$. Hint: start with $Q(1/2)$, then divide the second equation by
+the first.
+Compute them for the wind data. Then compare the fitted model's
+probability of a day above 15 mph with the fraction of days above 15 mph in
+the data.
+
+(c) Simulate 1,000 samples of size 153 from the fitted model. Estimate the
+bias and MSE of $\hat\beta$, each with a 99% confidence interval.
+
+## A.3
+
+`discoveries` counts the great inventions and scientific discoveries in each
+year from 1860 to 1959.
+
+```{r discoveries}
+d <- as.numeric(discoveries)
+table(d)
+```
+
+(a) The Poisson($\lambda$) PMF is
+$$p(x) = \frac{\lambda^x e^{-\lambda}}{x!}, \qquad x = 0, 1, 2, \ldots,$$
+which `dpois(x, lambda)` computes. Write `rpois_inv(n, lambda)`, which draws
+Poisson($\lambda$) values by inversion: tabulate the CDF
+$F(x) = \sum_{i=0}^{x} p(i)$, then for each $u$ find the smallest
+$x$ with $F(x) \ge u$. Do not use `rpois` or `qpois`. Check 10,000 draws with
+$\lambda = 3.1$ against `dpois(0:10, 3.1)`.
+
+(b) A Poisson variable has variance equal to its mean, so for Poisson counts
+$S^2 / \bar X$ should be near 1. Compute it for `discoveries`. Simulate its
+null distribution from 5,000 samples of size 100 drawn with `rpois_inv` at
+$\lambda = \bar X$, and report the Monte Carlo $p$-value for the alternative
+that the variance exceeds the mean.
+
+# Part B: Transformations and mixtures
+
+## B.1
+
+Let $X$ and $Y$ be independent $N(0, 1)$, and write the point $(X, Y)$ in
+polar coordinates: radius $R = \sqrt{X^2 + Y^2}$ and angle $A$, so that
+$X = R \cos A$ and $Y = R \sin A$.
+
+(a) Show that $R^2$ is exponential with rate $1/2$. You may use that
+$\chi^2(2)$ is the exponential distribution with mean 2.
+
+(b) Take as given that $A \sim U(0, 2\pi)$, independent of $R$. Use the
+exponential quantile function from video 1 to show that for independent
+$U_1, U_2 \sim U(0, 1)$,
+$$\sqrt{-2 \log U_1} \, \cos(2 \pi U_2) \sim N(0, 1).$$
+
+(c) Implement this as `rnorm_bm(n)`. Check 10,000 draws with a QQ plot, and
+estimate $P(X > 2)$ with a 95% confidence interval. Compare with `pnorm(-2)`.
+
+## B.2
+
+A **zero-inflated Poisson** (ZIP) is zero with some extra probability and
+otherwise Poisson. With a latent $W \sim \text{Bernoulli}(\theta)$
+independent of $X \sim \text{Poisson}(\lambda)$, let $Y = WX$.
+
+(a) Write `rzip(n, theta, lambda)` from this representation. Use `rpois` for
+$X$.
+
+(b) The method of moments estimators are
+$$\hat \lambda = \frac{S^2 + \bar Y^2}{\bar Y} - 1, \qquad
+  \hat \theta = 1 - \frac{S^2 - \bar Y}{S^2 + \bar Y^2 - \bar Y}.$$
+Fit the ZIP to `discoveries`. How many of the 100 years does the fitted model
+expect to have no discoveries, and how many did?
+
+(c) Simulate 2,000 samples of size 100 from the fitted ZIP, and give a Monte
+Carlo $p$-value for the observed number of zeros. The alternative is that
+there are fewer zeros than the model predicts.
+
+# Part C: Accept-reject and importance resampling
+
+The standard Laplace density is $g(x) = \frac{1}{2} e^{-|x|}$. Video 3 samples
+it by inversion:
+
+```{r rlaplace}
+rlaplace <- function(n) {
+  u <- runif(n)
+  ifelse(u < 1/2, log(2 * u), -log(2 - 2 * u))
+}
+```
+
+## C.1
+
+(a) Find with pen and paper the smallest $c$ such that $c \, g(x) \ge \phi(x)$
+for all $x$, where $\phi$ is the standard normal density. Treat $x \ge 0$ and
+$x < 0$ separately.
+
+(b) Use accept-reject with 10,000 Laplace candidates to draw standard
+normals. Check the accepted draws with a QQ plot. Report the acceptance rate
+with a 95% confidence interval, and compare it with $1/c$.
+
+## C.2
+
+Let $f(x) \propto f^*(x) = \sin(\pi x^2)$ on $0 < x < 1$. Neither method
+below needs the normalizing constant.
+
+```{r fstar}
+fstar <- function(x) sin(pi * x^2)
+curve(fstar(x), from = 0, to = 1)
+```
+
+(a) Use accept-reject with a $U(0, 1)$ envelope and 10,000 candidates. Since
+$f^* \le 1$, accept a candidate $Y$ when $U \le f^*(Y)$.
+
+(b) Use importance resampling. Draw 10,000 new $U(0, 1)$ candidates, normalize
+the weights $f^*(Y_i)$, and resample 5,000 draws with
+`sample(..., replace = TRUE, prob = ...)`.
+
+(c) Estimate $\E{X}$ from each sample, and check both against the exact
+value from `integrate`.
+
+# Part D: Multivariate distributions and processes
+
+## D.1
+
+`faithful` records 272 eruptions of the Old Faithful geyser: the eruption
+length and the waiting time to the next eruption, both in minutes.
+
+```{r faithful}
+ggplot(faithful, aes(x = eruptions, y = waiting)) + geom_point()
+```
+
+We model the pair as a mixture of two bivariate normals: with probability
+$p$ a draw from $N_2(\mu_1, \Sigma_1)$, and otherwise a draw from
+$N_2(\mu_2, \Sigma_2)$.
+
+(a) Split the eruptions at 3 minutes. Estimate $p$ as the fraction of short
+eruptions, and each component's mean and covariance from its group
+(`colMeans`, `cov`).
+
+(b) Write `rfaithful(n)`, which draws from the fitted mixture. Generate each
+normal component as $\mu + C^T Z$ with `C <- chol(Sigma)`, not with a package
+function. Plot 272 simulated points next to the data.
+
+## D.2
+
+(a) Show that the mean of the mixture is $p \mu_1 + (1 - p) \mu_2$.
+
+(b) Compare three covariance matrices: `cov(faithful)`, the covariance of
+10,000 draws from `rfaithful`, and $p \Sigma_1 + (1 - p) \Sigma_2$. Is the
+covariance of a mixture the weighted average of the component covariances?
+
+## D.3
+
+`data/spy.rda` holds the daily closing price of SPY, a fund that tracks the
+S&P 500, for 3,488 trading days from 2007 to 2020. Prices are adjusted for
+dividends and splits.
+
+```{r spy}
+load("../../data/spy.rda")
+logp <- log(spy$price)
+r <- diff(logp)
+ggplot(spy, aes(x = date, y = price)) + geom_line()
+```
+
+A simple model for the log price $L_t$ is a Gaussian random walk,
+$L_t = L_{t-1} + \mu + \sigma Z_t$ with independent $Z_t \sim N(0, 1)$. Under
+this model the daily log returns $r_t = L_t - L_{t-1}$ are independent
+$N(\mu, \sigma^2)$.
+
+(a) Estimate $\mu$ and $\sigma$ from the returns. Write `rwalk()`, which
+simulates a log price path of the same length as the data from the fitted
+walk, starting at the first observed $L_t$. Plot 20 simulated paths with the
+observed one.
+
+(b) The **largest drawdown** is the biggest fall from an earlier peak,
+$\min_t \left(L_t - \max_{s \le t} L_s\right)$. `cummax` computes the running
+peak. Compute the largest drawdown for the data, and give a Monte Carlo
+$p$-value from 1,000 simulated paths. The alternative is that real
+drawdowns are larger (more negative) than the model's.
+
+(c) Repeat (b) with the correlation between $|r_t|$ and $|r_{t-1}|$ as the
+statistic. It is large when big moves follow big moves. The alternative is
+that it is larger than under the model.
+
+(d) Which feature of the data does the random walk reproduce, and which does
+it miss?
+
+# Part E: Gibbs sampling
+
+A Morning Consult/Politico poll asked voters whether Congress should raise the
+federal minimum wage. Leaving out those with no opinion:
+
+```{r poll}
+x1 <- 806  # raise it to $15/hr
+x2 <- 435  # do not raise it
+x3 <- 586  # raise it to $11/hr
+```
+
+We model the counts as multinomial with probabilities $\theta_1, \theta_2$ and
+$\theta_3 = 1 - \theta_1 - \theta_2$:
+$$f(x_1, x_2, x_3 \mid \theta_1, \theta_2) \propto
+  \theta_1^{x_1} \theta_2^{x_2} (1 - \theta_1 - \theta_2)^{x_3}.$$
+The prior is Dirichlet($\delta_1, \delta_2, \delta_3$), which generalizes the
+Beta to three probabilities that sum to 1:
+$$p(\theta_1, \theta_2) \propto
+  \theta_1^{\delta_1 - 1} \theta_2^{\delta_2 - 1} (1 - \theta_1 - \theta_2)^{\delta_3 - 1}.$$
+
+## E.1
+
+(a) Show that the posterior is Dirichlet($x_1 + \delta_1, x_2 + \delta_2, x_3 + \delta_3$).
+
+(b) Show that the full conditional of $\theta_1$ is a scaled Beta,
+$$\theta_1 \mid \theta_2, x \sim (1 - \theta_2) \, \text{Beta}(x_1 + \delta_1, \, x_3 + \delta_3),$$
+and state the matching result for $\theta_2 \mid \theta_1, x$. Hint: if
+$X = aB$ with $a > 0$, then $f_X(x) = f_B(x/a)/a$ (module 1 project, A.1).
+
+## E.2
+
+Write a Gibbs sampler that alternates the two full conditionals from E.1,
+with every $\delta_i = 1$. Run 5,000 iterations starting from
+$\theta_1 = \theta_2 = 1/3$, make a trace plot of $\theta_1$ and $\theta_2$,
+and discard the first 1,000. Report the posterior mean and a 95% credible
+interval (the 2.5% and 97.5% quantiles of the draws) for $\theta_1$,
+$\theta_2$ and $\theta_3$, and estimate $P(\theta_1 / \theta_2 > 2 \mid x)$.
+
+## E.3
+
+If $G_1, G_2, G_3$ are independent with $G_i \sim \text{Gamma}(a_i, 1)$, then
+$(G_1, G_2, G_3) / (G_1 + G_2 + G_3)$ is Dirichlet($a_1, a_2, a_3$). With two
+components this is the Beta: $G_1 / (G_1 + G_2) \sim \text{Beta}(a_1, a_2)$.
+
+The same construction gives the marginal posterior of $\theta_1$. Write
+$\theta_1 = G_1 / (G_1 + H)$ with $H = G_2 + G_3$. A sum of independent
+gammas with the same rate is gamma, so $H \sim \text{Gamma}(a_2 + a_3, 1)$,
+independent of $G_1$, and therefore
+$\theta_1 \mid x \sim \text{Beta}(a_1, a_2 + a_3)$.
+
+Both results involve a Beta, but they are different distributions:
+
+| | distribution | used by |
+|---|---|---|
+| full conditional $\theta_1 \mid \theta_2, x$ | $(1 - \theta_2)\,\text{Beta}(a_1, a_3)$ | the Gibbs sampler in E.2 |
+| marginal $\theta_1 \mid x$ | $\text{Beta}(a_1, a_2 + a_3)$ | the check below |
+
+The conditional depends on the current value of $\theta_2$, and the marginal
+does not. The Gibbs sampler needs only the conditionals. We use the marginal
+here to check the chain.
+
+Draw 4,000 values from the posterior directly with the gamma construction.
+Make QQ plots of the direct draws of $\theta_1$ and of the Gibbs draws of
+$\theta_1$ against the Beta($a_1, a_2 + a_3$) quantile function (`qbeta`, with
+the shape parameters passed through `dparams` as in A.2), and compare
+the two estimates of $P(\theta_1 / \theta_2 > 2 \mid x)$.
+

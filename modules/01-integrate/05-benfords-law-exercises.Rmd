@@ -1,0 +1,212 @@
+---
+title: "Benford's Law: Session Exercises"
+subtitle: "Module 1, Day 5 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+set.seed(40605)
+```
+
+**Benford's Law** says the leading digit of a number --- the 2 in 242, the 5
+in 5670 --- is not uniform on $\{1, \ldots, 9\}$ but follows
+
+$$P(D = d) = \log_{10}\!\left(\frac{d+1}{d}\right), \qquad d = 1, \ldots, 9,$$
+
+so ones turn up about 30% of the time and nines about 4.6%. It is used in
+tax auditing and election forensics on the theory that fabricated numbers do
+not obey it.
+
+---
+
+# Leading Digits
+
+Let $x$ be any real number with $x \ge 1$ and write:
+
+$$x = 10^{m + f}$$
+
+Where $m$ is the largest integer such that $x \ge 10^m$. Then by construction
+$m \ge 0$ and $0 \le f < 1$. Splitting $x$
+this way separates its **scale** from its **digits**:
+
+$$x = 10^m \cdot 10^f.$$
+
+Because $0 \le f < 1$ we have $1 \le 10^f <
+10$, and multiplying by $10^m$ only moves the decimal point. So $10^f$ is the
+digit string of $x$ with the point placed after the first digit --- the
+**mantissa**. For $242 = 10^2 \cdot 2.42$ it is $2.42$; for
+$5670 = 10^3 \cdot 5.67$ it is $5.67$. The leading digit is therefore
+
+$$D(x) = \left\lfloor 10^{f} \right\rfloor, \qquad f = \log_{10}(x) \bmod 1.$$
+
+Due to the finite precision of computers, we have to compute $D(x)$ slightly differently than the ideal form.
+Rearranging $x = 10^m \cdot 10^f$ gives $10^f = x / 10^m$, so the same digit
+is equally
+
+$$D(x) = \left\lfloor \frac{x}{10^{m}} \right\rfloor,
+\qquad m = \lfloor \log_{10} x \rfloor.$$
+
+## Exercise 1 --- Computing the first digit
+
+Write `first_digit(x)` using the second form. The floor operator is `floor()`.
+
+```{r}
+# solution
+```
+
+Check your solution:
+
+```{r eval = FALSE}
+first_digit(c(242, 5670, 91000))
+first_digit(c(1:9, 80, 900))
+```
+
+# Distributions over $D$
+
+Notice that many values for $f$ will result in the same first digit because we take
+the floor of $10^f$. A digit therefore corresponds not to one value of $f$ but to a
+whole **set** of them --- every $f$ with $\lfloor 10^f \rfloor = d$, which is
+every $f$ satisfying
+
+$$d \; \le \; 10^{f} \; < \; d + 1.$$
+
+The set of $f$ that produce digit $d$ is an **interval**:
+
+$$I_d = \left[\, \log_{10} d, \; \log_{10}(d+1) \,\right) \qquad d = 1, \ldots, 9$$
+
+A distribution over leading digits is therefore a distribution over the intervals $I_d$. To generate random numbers for this distribution, imagine picking an interval $I_d$, then picking an $F$ within that interval. Select $M$ following some other method and $X = 10^M 10^F$.
+
+## Exercise 2 --- Uniform leading digits
+
+Generate 10,000 draws this way: choose one of the nine intervals $I_d$
+uniformly, choose $F$ uniformly within it, choose $M \sim \text{Poisson}(2)$,
+and set $X = 10^{M} 10^{F}$. Plot a histogram of the draws.
+
+# Benford's Law 
+The interval $I_d$ for digit $d$ has width
+
+$$w_d = \log_{10}(d+1) - \log_{10} d = \log_{10}\!\left(\frac{d+1}{d}\right),$$
+
+and these widths are nowhere near equal. Digit 1 owns 30% of the interval (0,1), digit
+9 owns 4.6%:
+
+```{r}
+# widths
+round(log10((2:10) / (1:9)), 3)
+```
+
+Benford's Law states that the probability of selecting $F$ to be in $I_d$ is equal to $w_d$. A sufficient condition to be true is when $F$ is uniform on (0,1)
+
+## Exercise 3 --- Benford leading digits
+
+Repeat the previous exercise using $F \sim U(0,1)$
+
+# Real World Benford
+
+So why would we expect the distribution over the intervals $I_d$ to be equal to their widths, or that $F$ was uniform on $(0,1)$?
+
+Recall the Central Limit Theorem states that for IID variables $Y_i$ with mean $\mu$ and variance $\sigma^2$, $\sum_{i=1}^k Y_i \approx N(k \mu, k \sigma^2)$. In this particular case, suppose that $\mu > 0$. Write $V = 10^Y$, so that $\sum_{i=1}^k \log_{10} V_i \approx N(k \mu, k \sigma^2)$.
+
+Split that sum into its integer and fractional parts,
+$\sum_{i=1}^k \log_{10} V_i = M + F$, as we did in the last section. When $k$ is large, the mean of $M + F$ will be $k \mu$, far from zero, and the variance $k \sigma^2$ will imply a very flat distribution over many units. With enough spread $F$ becomes
+uniform on $(0,1)$, and $P(F \in I_d) \approx w_d$.
+
+Now reverse this logic: $10^{M+F} = 10^{\sum_i \log_{10} V_i}.$ Recall, a sum of logs is the log of a product: 
+$$10^{\sum_i \log_{10} V_i} = 10^{\log_{10} \prod_i V_i} = \prod_i V_i$$
+Writing $X = \prod_{i=1}^k V_i$ we can see that any
+quantity built by multiplying many IID factors together has Benford leading
+digits.
+
+## Exercise 4 --- Products of $k$ factors
+
+Let $Y_i \sim \text{Exp}(10)$, so every $V_i = 10^{Y_i}$ is at least 1, and
+let $X = \prod_{i=1}^k V_i$. For $k \in \{1, 5, 25, 100\}$ simulate 100,000
+values of $X$, plot the distribution of $F = \log_{10} X \bmod 1$,and tabulate the leading digits
+against $w_d$.
+
+How large does $k$ have to be?
+
+# A test on real data
+
+Tam Cho and Gaines report leading-digit frequencies for **8,396
+contributions between political committees**, from 2004 FEC filings (their
+Table 1):
+
+```{r}
+pol_digits <- c(23.3, 21.1, 8.5, 11.7, 9.5, 4.2, 3.7, 4.0, 14.1) / 100
+```
+
+```{r echo = FALSE, fig.height = 2.5}
+tibble(d = factor(rep(1:9, 2)), p = c(pol_digits, log10(1 + 1 / 1:9)),
+       source = rep(c("FEC contributions", "Benford"), each = 9)) |>
+  ggplot(aes(x = d, y = p, fill = source)) + geom_col(position = "dodge") +
+  labs(x = "leading digit", y = NULL, fill = NULL)
+```
+
+They disagree, most visibly at 9: 14.1% against an expected 4.6%. Is that
+surprising, or is it what random data looks like?
+
+Instead of $\chi^2$, use the Euclidean distance between the observed and
+expected digit distributions,
+
+$$T = \sqrt{\sum_d \left(\hat p_d - p_d\right)^2}.$$
+
+We write it $T$ because it is going to be a test statistic --- and because $m$
+is already taken, by the integer exponent in the opening derivation.
+
+This is the paper's own statistic. Tam Cho and Gaines report it divided by the
+largest distance attainable --- all mass on digit 9, which gives 1.036 --- and
+call that $d^*$. So the 0.131 in their Table 1 for 2004 is the $T$ you are
+about to compute, rescaled. They chose a distance precisely *because* it is not
+tied to a hypothesis test and does not move with sample size; Exercises 6 and 7
+then build a $p$-value and a power curve on it.
+
+These do the bookkeeping. The only piece left to write is `distance()`.
+
+```{r}
+dbenford <- function(d) log10((d + 1) / d)
+digit_props <- function(d) as.numeric(table(factor(d, levels = 1:9))) / length(d)
+rbenford <- function(n) sample(1:9, n, prob = dbenford(1:9), replace = TRUE)
+tstat <- function(d) distance(digit_props(d))
+```
+
+## Exercise 5 --- The observed statistic
+
+Write `distance(v)`, taking nine proportions and returning $T$. Compute the
+observed value for `pol_digits`.
+
+## Exercise 6 --- The null distribution and the $p$-value
+
+Under $H_0$ the 8,396 digits are iid draws from the Benford distribution.
+Simulate the null with `B = 4000` replicates, plot it with the observed value
+marked, and compute the $p$-value with the $(1 + \#)/(B+1)$ formula.
+
+A classmate reports "$p = 0$, so the data cannot be Benford." What is wrong
+with that, and what should be reported instead?
+
+## Exercise 7 --- Power against a flatter alternative
+
+Suppose the truth is not Benford but something more uniform --- halfway
+between the two:
+
+```{r}
+p_alt <- 0.5 * dbenford(1:9) + 0.5 / 9
+round(p_alt, 3)
+```
+
+For each $n \in \{50, 200, 8396\}$: simulate 1,000 null statistics at that
+$n$, take the 95% quantile as the critical value, simulate 1,000 more with
+digits drawn from `p_alt`, and report the fraction above the cutoff. That
+fraction is the power against this alternative.
+
+What does the $n = 50$ row say about a Benford test run on a small dataset?
+
+---

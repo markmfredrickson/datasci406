@@ -1,0 +1,206 @@
+---
+title: "Monte Carlo Integration: Session Exercises"
+subtitle: "Module 1, Day 1 --- DATASCI 406, Computational Methods in Statistics and Data Science"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+output:
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.width = 6, fig.height = 3.5,
+                      collapse = TRUE, comment = "#>")
+library(tidyverse)
+set.seed(40601)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+
+Exercise 1 builds your toolbox of samplers. Every exercise after it uses
+the recipe from the video:
+
+1. Write the integral as $\E{h(X)}$ for a random variable $X$ you can sample.
+2. Sample $X_1, \ldots, X_n$ and average $h(X_i)$.
+3. Report a confidence interval, not just the point estimate.
+
+Each integration exercise has a known true value, so you can check your
+work. Your estimates will differ from the targets --- that is the point.
+Your confidence interval should usually cover the target.
+
+---
+
+# 1. A tour of R's distributions
+
+Let's investigate the distributions available in R.
+`?Distributions` lists every distribution R ships with; each has the
+`r`/`d`/`p`/`q` functions from the video. 
+
+## Exercise
+
+**(a)** Here is a start on a catalog of draws, in the long format that
+`ggplot` likes:
+
+```{r}
+n <- 1000
+draws <- list(
+  norm   = rnorm(n),
+  unif   = runif(n),
+  exp    = rexp(n),
+  cauchy = rcauchy(n)
+) |> enframe() |> unnest(value)
+
+draws |> group_by(name) |> summarize(mean(value))
+```
+
+Extend the list with **at least six more** distributions from the
+`?Distributions` page, mixing continuous and discrete. Most need
+parameters --- check the help page (e.g. `?rgamma`) and pick any sensible
+values; skip `rmultinom` (it returns a matrix). Then plot the whole
+catalog as histograms in one faceted figure
+(`facet_wrap(~ name, scales = "free")`).
+
+The **Cauchy** panel will look broken --- one bar and a huge empty axis.
+It is not a bug. Investigate:
+
+- Re-run your `summarize()` of the sample means a few times. Every other
+  distribution's mean barely moves between runs. What does the Cauchy's do?
+- Look at `sort(abs(rcauchy(n)), decreasing = TRUE)[1:5]` a few times.
+  Where is the histogram's x-axis coming from?
+
+**(b)** Pick **two** distributions from your catalog and explore their
+parameters, plotting draws across a grid of parameter values. Here is the
+pattern, applied to the Normal --- `expand_grid()` builds every
+combination, and `map2()` draws a sample for each row:
+
+```{r fig.height = 3}
+expand_grid(mean = c(-5, 0, 5), sd = c(0.5, 2)) |>
+  mutate(value = map2(mean, sd, ~ rnorm(2000, mean = .x, sd = .y))) |>
+  unnest(value) |>
+  ggplot(aes(x = value)) +
+  geom_histogram(bins = 40) +
+  facet_grid(sd ~ mean, labeller = label_both)
+```
+
+Adapt it to two distributions of your choice (not the Normal). For at
+least one of them, find parameter settings that make it match a
+distribution you already know.
+
+---
+
+# 2. An integral on [0, 1]
+
+For an integral over $[0,1]$, $\int_0^1 g(x)\,dx = \E{g(U)}$, where $U$ is uniform on 
+$[0, 1]$. We can estimate the value of this integral by taking a sample of IID uniform draws
+and computing the sample mean of $g(U_i)$.
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^1 \sin(\pi x) \, dx$$
+using 10,000 uniform draws. Give a 95\% confidence interval using `t.test`.
+
+The true value is $2/\pi \approx 0.6366$. Does your interval cover it?
+
+---
+
+# 3. Same integral, two RVs
+
+The general recipe works with **any** density $f$ that is positive on the
+domain: $\int g(x)\,dx = \E{g(X)/f(X)}$ for $X \sim f$. Different choices
+of $f$ give different estimators of the **same** integral. Are they equally
+good?
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^\infty x^2 e^{-x} \, dx$$
+(true value $\Gamma(3) = 2! = 2$) twice, with 10,000 draws each:
+
+**(a)** with $f = $ Exp(1) draws (`rexp` / `dexp`), and
+
+**(b)** with $f = $ Gamma(shape 2, rate 1) draws (`rgamma` / `dgamma`) ---
+the Gamma family from exercise 1.
+
+Before coding, simplify $h(x) = g(x)/f(x)$ by hand in each case --- both
+simplify pleasantly.
+
+**(c)** Report a 95\% confidence interval for each. Both estimate the same
+$\theta$ from the same number of draws --- which interval is narrower, and
+by roughly what factor?
+
+**(d)** Plot the **ECDFs** of the 10,000 $h$ values from (a) and the
+10,000 from (b) on one set of axes (`stat_ecdf()`). What do the two curves
+have in common, and how does their difference explain (c)?
+
+**(e)** Repeat with $f = $ Gamma(shape 3, rate 1). Something
+strange happens --- run it, then explain.
+
+---
+
+# 4. Probabilities are expectations of indicators
+
+Recall an indicator function is a function that has the value 1 if a statement
+is true and 0 if the statement is false. They are the mathematical equivalent of
+`if` statements and conditionals in R. An important result is that for event $A$,
+
+$$P(A) = E(\mathbf{1}(A))$$
+
+In other words, we can estimate probabilities in the same way we estimate expectations.
+
+## Exercise
+
+For $Z \sim N(0, 1)$, estimate
+$$\theta = P(1 \le Z \le 2)$$
+using 100,000 draws.
+
+1. Write the indicator directly in R (no `ifelse` needed).
+2. Give a 99\% confidence interval. Which is the right tool here, `t.test`
+   or `binom.test`, and why?
+3. Check against the exact value from `pnorm`.
+
+---
+
+# 5. Joint distributions
+
+Nothing in the recipe is one-dimensional. A double integral is an
+expectation over a random **pair**: sample both coordinates, apply $h$,
+average. When the coordinates are independent, sampling the pair is just
+two calls to an `r` function.
+
+## Exercise
+
+**(a)** For $X, Y$ independent $U(0, 1)$, estimate the double integral
+$$\theta = \int_0^1 \int_0^1 |x - y| \, dx \, dy = \E{|X - Y|}$$
+with 100,000 pairs and a 95\% confidence interval. The true value is $1/3$.
+
+**(b)** For $Z_1, Z_2$ independent $N(0, 1)$, estimate
+$$P(Z_1 < Z_2 + 1)$$
+with a 99\% confidence interval, using the right interval tool for the
+job. Then check it exactly: what is the distribution of $Z_1 - Z_2$?
+
+---
+
+# 6. When the recipe breaks
+
+The video stated conditions: $\E{h(X)} < \infty$ **and** $\E{h(X)^2} <
+\infty$. This exercise is about what happens when the second one fails.
+
+## Exercise
+
+Estimate
+$$\theta = \int_0^\infty \frac{1}{1 + x^2} \, dx$$
+using Exp(1) draws, so $h(x) = e^{x} / (1 + x^2)$. The true value is
+$\pi/2 \approx 1.5708$.
+
+1. Run the estimator with $n = 100{,}000$ **five separate times**
+   (`replicate` helps). Do the answers agree with each other? With the
+   truth?
+2. The estimator is unbiased --- we proved that in the video. So what is
+   going wrong? Look at $\E{h(X)^2}$.
+3. Would increasing $n$ fix this?
+
+---

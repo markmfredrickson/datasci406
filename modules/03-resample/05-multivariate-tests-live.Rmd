@@ -1,0 +1,187 @@
+---
+title: "Permutation Tests for Vectors: Through Part E"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample, Session 5"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%", cache = TRUE, autodep = TRUE)
+options(width = 60, digits = 4)
+set.seed(20261110)
+library(tidyverse)
+B <- 999
+pval <- function(t_null, t_obs) (1 + sum(t_null >= t_obs)) / (length(t_null) + 1)
+```
+
+## Today
+
+No video before this session. Each idea here is followed by the Part E item that uses it.
+
+| Idea | Then |
+|---|---|
+| two samples of vectors, the energy test | E.1 |
+| independence, distance correlation | E.2 |
+
+The full deck is the video, posted after class. It adds nearest neighbors, networks and tables, which E.3 uses at home. Turn in `project_e.html` on Canvas.
+
+## Two null hypotheses for multivariate data
+
+**Equal distributions.** $X_1, \ldots, X_m \iid F$ and $Y_1, \ldots, Y_n \iid G$, each in $\mathbb{R}^p$.
+$$H_0: F = G.$$
+Shuffle the group labels, as in deck 4.
+
+**Independence.** Pairs $(X_i, Y_i)$, $i = 1, \ldots, n$, iid.
+$$H_0: F_{XY}(x, y) = F_X(x) F_Y(y).$$
+Shuffle the $Y_i$ against the $X_i$.
+
+Vectors have no single ordering, so the statistics are built from **pairs of observations**.
+
+# Two Samples of Vectors
+
+## Margins and joint distributions
+
+$F = G$ means equal **joint** distributions, not equal margins.
+
+Example: $N(0, 1)$ margins, correlation $0.7$ for $X$ and $-0.7$ for $Y$.
+
+```{r sim-two, echo=FALSE, fig.height=2.2, fig.width=6}
+sim_pair <- function(n, rho) {
+  z1 <- rnorm(n)
+  z2 <- rho * z1 + sqrt(1 - rho^2) * rnorm(n)
+  cbind(z1, z2)
+}
+m <- 50
+X <- sim_pair(m, 0.7)
+Y <- sim_pair(m, -0.7)
+sim <- rbind(X, Y)
+g_sim <- rep(c(TRUE, FALSE), c(m, m))
+ggplot(data.frame(x1 = sim[, 1], x2 = sim[, 2], sample = ifelse(g_sim, "X", "Y")),
+       aes(x1, x2, shape = sample)) +
+  geom_point() + scale_shape_manual(values = c(16, 1)) +
+  coord_fixed()
+```
+
+## Energy distance
+
+Euclidean distance between $x, y \in \mathbb{R}^d$:
+$$\|x - y\| = \sqrt{\sum_{k=1}^d (x_k - y_k)^2}.$$
+
+For $X, X' \iid F$ and $Y, Y' \iid G$, independent, with finite means,
+$$\mathcal{E}(F, G) = 2 \E{\|X - Y\|} - \E{\|X - X'\|} - \E{\|Y - Y'\|}.$$
+
+- $\mathcal{E}(F, G) \ge 0$, and $\mathcal{E}(F, G) = 0$ only when $F = G$.
+- Mixed samples: distances between groups match distances within, so $\mathcal{E} \approx 0$.
+
+## Energy distance from a sample
+
+Replace each expectation with an average over the pooled distance matrix $D_{ij} = \|Z_i - Z_j\|$:
+$$\hat{\mathcal{E}} = \frac{2}{mn} \sum_{X, Y} D_{ij} - \frac{1}{m^2} \sum_{X, X} D_{ij} - \frac{1}{n^2} \sum_{Y, Y} D_{ij}.$$
+
+Reject for large values. Scaling by $mn/(m + n)$ does not change the $p$-value.
+
+## Energy statistic in R
+
+Compute `dist()` once. A shuffle changes only which entries are averaged.
+
+```{r energy-def}
+energy <- function(D, g) {
+  2 * mean(D[g, !g]) - mean(D[g, g]) - mean(D[!g, !g])
+}
+D_sim <- as.matrix(dist(sim))
+e_obs <- energy(D_sim, g_sim)
+e_null <- replicate(B, energy(D_sim, sample(g_sim)))
+c(observed = e_obs, p = pval(e_null, e_obs))
+```
+
+Rejects where the coordinate-wise KS tests did not.
+
+## Now: E.1
+
+Holidays against weekends, then against working days, on (`casual`, `registered`). $H_0$: $F = G$.
+
+- `D_wk <- as.matrix(dist(...))` once, then `energy(D, g)` from three block means.
+- `energy_null(D, g)`: `energy` on $B = 2000$ shuffles of `g`. Then `pval()` and `plot_null()`.
+
+Check: $p \approx 0.15$ against weekends, $p = 0.0005$ against working days.
+
+# Independence
+
+## Testing independence by shuffling the pairing
+
+**$H_0$**: $X$ and $Y$ are independent, with $(X_i, Y_i)$ iid.
+
+- **Condition on**: the $X$ values and the $Y$ values.
+- **Rearrange**: the pairing. Every matching of $Y$s to $X$s is equally likely, $n!$ in all.
+- **$T$**: any measure of dependence.
+
+## Pearson correlation and nonlinear dependence
+
+```{r pearson-fail}
+x <- runif(200, -1, 1)
+y <- x^2 + rnorm(200, sd = 0.1)
+r_null <- replicate(B, cor(x, sample(y)))
+c(r = cor(x, y), p = pval(abs(r_null), abs(cor(x, y))))
+```
+
+```{r pearson-fail-plot, echo=FALSE, fig.height=1, fig.width=6}
+ggplot(data.frame(x, y), aes(x, y)) + geom_point(size = 0.5)
+```
+
+$Y$ is nearly a function of $X$, but $r$ is near 0 because the relationship is not linear.
+
+## Distance covariance
+
+Distance matrices $a_{ij} = |X_i - X_j|$ and $b_{ij} = |Y_i - Y_j|$, each **double-centered**:
+$$\tilde a_{ij} = a_{ij} - \bar a_{i \cdot} - \bar a_{\cdot j} + \bar a_{\cdot \cdot}.$$
+
+Squared sample distance covariance, a pairwise statistic:
+$$\text{dCov}_n^2(X, Y) = \frac{1}{n^2} \sum_{i, j} \tilde a_{ij} \tilde b_{ij}.$$
+
+- The population version is 0 **only** under independence (finite means).
+- For vectors, use $\|X_i - X_j\|$.
+
+## Distance correlation
+
+Scale by the distance variances, $\text{dVar}_n^2(X) = \text{dCov}_n^2(X, X)$:
+$$\text{dCor}_n^2(X, Y) = \frac{\text{dCov}_n^2(X, Y)}{\sqrt{\text{dVar}_n^2(X) \, \text{dVar}_n^2(Y)}}.$$
+
+- $0 \le \text{dCor} \le 1$, and dCor $= 0$ only under independence.
+- The sample dCor is positive even under independence. Compare it with its permutation null.
+
+## Distance correlation in R
+
+Centering $b[\pi, \pi]$ gives $\tilde b[\pi, \pi]$, so center once, then permute.
+
+```{r dcor-def}
+center <- function(D) D - outer(rowMeans(D), colMeans(D), "+") + mean(D)
+dcor <- function(A, B) sqrt(mean(A * B) / sqrt(mean(A^2) * mean(B^2)))
+A <- center(as.matrix(dist(x)))
+Bc <- center(as.matrix(dist(y)))
+d_obs <- dcor(A, Bc)
+d_null <- replicate(B, { p <- sample(length(y)); dcor(A, Bc[p, p]) })
+c(dcor = d_obs, max_null = max(d_null), p = pval(d_null, d_obs))
+```
+
+## Now: E.2
+
+Humidity and `total` rentals. $H_0$: independent.
+
+- $r$ and its permutation $p$-value from $|r|$, $B = 2000$. Plot both nulls.
+- `center()` each distance matrix once, then `dcor(A, Bc[p, p])` for $B = 999$ shuffles.
+- $r$ below and above 60% humidity.
+
+Check: $r \approx -0.10$, $p \approx 0.005$. dCor $\approx 0.17$, $p = 0.001$. $r \approx 0.18$ below 60, $-0.35$ above.
+
+## After class
+
+- Watch the video: nearest neighbors, networks, tables.
+- E.3 at home: nearest neighbors and units, dCov with a 0/1 label, and the weather table.
+- Knit `project_e.Rmd` and upload the `.html` before Thursday.

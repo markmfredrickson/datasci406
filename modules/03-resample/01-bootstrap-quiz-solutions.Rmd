@@ -1,0 +1,106 @@
+---
+pagetitle: "Quiz 3.1: The Bootstrap"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 3.1**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+A bootstrap SE for a sample of $n = 30$ observations is computed from
+$B = 1000$ bootstrap samples. What changes if $B$ is raised to $100{,}000$?
+
+1. The bootstrap SE converges to the true SE of $T$.
+1. Both the Monte Carlo error and the error from using $\hat F$ in place of
+   $F$ shrink.
+1. The Monte Carlo error shrinks, but the error from using $\hat F$ in place
+   of $F$ does not.
+1. Nothing, because every one of the $30^{30}$ possible bootstrap samples
+   is already drawn.
+
+### Solution
+
+**Answer: 3.** $B$ controls only how well the $T^*_b$ describe the bootstrap
+distribution, which is the sampling distribution of $T$ under $\hat F$. That
+distribution differs from the one under $F$ no matter how large $B$ is, so
+option 1 and option 2 are wrong. Option 4 is wrong because
+$30^{30} \approx 2 \times 10^{44}$, far more than 1000.
+
+## Question 2 (1 point)
+
+When would you use a basic or percentile interval instead of the normal
+interval, $T \pm z_{1 - \alpha/2} \, \widehat{\text{SE}}$?
+
+1. When the bootstrap distribution of $T^*$ is skewed.
+1. When $B$ is small, because quantiles need fewer bootstrap samples than an
+   SE.
+1. When $T$ is the mean of a large sample.
+1. When the bootstrap SE is large.
+
+### Solution
+
+**Answer: 1.** The normal interval uses only the SE, so it is symmetric about
+$T$ and assumes $T$ is approximately normal. The basic and percentile
+intervals use quantiles of the bootstrap distribution, so they can reach
+further on one side, as for the Flint 90th percentile without the two
+excluded samples. Option 2 is backwards: tail quantiles need a larger $B$
+than an SE does. Option 3 is the case where the normal interval works well.
+Option 4 is wrong because a wide symmetric distribution is still fit by the
+normal interval.
+
+## Question 3 (1 point)
+
+Each of `n` homes has a first-draw lead level `x[k]` and a level after
+flushing `y[k]`. Which code computes one bootstrap replicate of the mean
+difference of logs?
+
+1. `mean(log(sample(x, replace = TRUE)) - log(sample(y, replace = TRUE)))`
+1. `i <- sample(n); mean(log(x[i]) - log(y[i]))`
+1. `i <- sample(n, replace = TRUE); mean(log(x[i])) - mean(log(y))`
+1. `i <- sample(n, replace = TRUE); mean(log(x[i]) - log(y[i]))`
+
+### Solution
+
+**Answer: 4.** $\hat F$ puts mass $1/n$ on each pair, so resample rows and
+keep each home's two values together. Option 1 resamples the columns
+separately and breaks the pairing. Option 2 samples without replacement,
+which only reorders the homes and returns the observed mean every time.
+Option 3 resamples `x` but not `y`.
+
+## Question 4 (1 point)
+
+For which of these statistics would the bootstrap **not** give a good
+estimate of the sampling distribution?
+
+1. The sample correlation.
+1. The sample maximum.
+1. The sample median.
+1. The mean difference of paired observations.
+
+### Solution
+
+**Answer: 2.** A bootstrap sample can only reuse observed values, so $T^*$ is
+never larger than the observed maximum, while the true maximum can be. The
+bootstrap needs a small change in $F$ to make a small change in $T$. The
+correlation and the mean difference are smooth functions of means, so they
+work well. The median and other quantiles work roughly, as the Flint 90th
+percentile did.
+
+**Rubric.** 1 pt per question, no partial credit.

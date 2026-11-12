@@ -1,0 +1,46 @@
+---
+title: "Variance Reduction and Importance Sampling: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 1: Integrate --- Session 2"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+## The rate is fixed; the constant is not
+
+Every estimator today is still a sample mean, so nothing changes here:
+$$\hat \theta_n = \frac{1}{n} \sum_{i=1}^n h(X_i), \qquad
+\Var{\hat \theta_n} = \frac{\tau^2}{n}, \qquad \tau^2 = \Var{h(X)}$$
+$$\text{error} = \tau \, n^{-1/2} = O(n^{-1/2})$$
+
+- $n$ buys only the **rate**, and it is expensive: one more digit of precision costs $100\times$ the draws.
+- $\tau$ is the **constant**, and it is ours to choose. Two estimators of the same $\theta$ differ *only* in $\tau$; the smaller one is **more efficient**.
+
+## Antithetic variables
+
+Pair each draw with a partner having the **same distribution** and **negative correlation**:
+$$\hat \theta = \frac{1}{m} \sum_{i=1}^m \frac{h(V_i) + h(V_i')}{2}$$
+
+- With monotone $h$: Uniform: $V' = 1 - V$. Symmetric: $V' = -V$. 
+- On a matched budget of $2m$ evaluations, with $\rho = \text{Cor}\left(h(V), h(V')\right)$:
+$$\textbf{percent variance reduction} = -\rho$$
+- The pair is the unit of independence --- you have $m$ independent things, not $2m$.
+
+## Importance sampling
+
+Sample from an **envelope** $g$ instead of $f$, and reweight:
+$$\theta = \int h(x) f(x) \, dx = \E{h(Y) \frac{f(Y)}{g(Y)}}, \qquad Y \sim g$$
+
+- $f(Y)/g(Y)$ are the **importance weights**.
+- The variance-minimizing envelope is imitates the shape of $|h(y)|f(y)$:
+$$g(y) \propto |h(y)| \, f(y)$$
+- Two requirements: $g > 0$ wherever $h f \ne 0$, and the weights bounded, $h f / g < c$.
+- **The envelope's tails must be at least as heavy as the target's.** Lighter $\Rightarrow$ unbounded weights $\Rightarrow$ infinite variance, and no $n$ fixes it.
+
+It is the tool of choice for **tail probabilities**, where direct sampling puts almost no draws where they matter.

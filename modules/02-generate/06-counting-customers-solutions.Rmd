@@ -1,0 +1,396 @@
+---
+title: "Counting Your Customers: Module 2 Practice Project"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, fig.width = 6, fig.height = 3)
+set.seed(20261015)
+library(tidyverse)
+
+# The worked copy shows only the solution code, so it hides the chunks with
+# stubs. It is the copy whose source still has solution blocks.
+src <- knitr::current_input(dir = TRUE)
+worked <- !is.null(src) && any(grepl("^### Solution", readLines(src)))
+knitr::opts_hooks$set(skeleton = function(options) {
+  if (worked) options$eval <- options$include <- FALSE
+  options
+})
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+
+# Directions
+
+This project builds the model in
+
+> Fader, P. S., Hardie, B. G. S., & Lee, K. L. (2005). "Counting Your
+> Customers" the Easy Way: An Alternative to the Pareto/NBD Model. *Marketing
+> Science*, 24(2), 275--284.
+
+It has one task for each video of the module. The math each task needs is
+worked out for you, and each task ends with a check against a known answer.
+The practice exam asks about this document, the same way the real exam asks
+about your project.
+
+This document is also turn-in 2.6, worth 1 point for completion. Each task
+has a chunk with a function for you to write and code that checks it. Write
+the function, and write your answers after each **Answer:**. Knit to HTML and
+upload the `.html` file to Canvas. Until you write a function, its check
+fails or shows an error. That is expected.
+
+# The model and the data
+
+CDNOW was an online music store. The data are 2,357 customers who made their
+first purchase in early 1997. For each customer we know
+
+- `T`: weeks from their first purchase to the end of the 39-week calibration
+  period,
+- `x`: the number of repeat purchases in that period,
+- `t_x`: the week of their last repeat purchase (0 if `x` is 0),
+- `x_star`: the number of purchases in the next 39 weeks.
+
+```{r data}
+cdnow <- read.csv("../../data/cdnow.csv")
+head(cdnow)
+```
+
+The paper's model (section 3) has four parts:
+
+1. While active, a customer's purchases form a Poisson process with rate
+   $\lambda$, so the gaps between purchases are $\text{Exp}(\lambda)$.
+2. Rates vary across customers: $\lambda \sim \text{Gamma}(r, \alpha)$, with
+   $\alpha$ a rate.
+3. After each purchase, the customer quits with probability $p$.
+4. Quitting probabilities vary across customers: $p \sim \text{Beta}(a, b)$,
+   independent of $\lambda$.
+
+We use the paper's estimates (Table 2), in weeks:
+
+```{r params}
+r <- 0.243
+alpha <- 4.414
+a <- 0.793
+b <- 2.426
+```
+
+# Part A: Inversion
+
+Let $J$ be the purchase after which a customer quits, so
+$P(J = j) = p(1 - p)^{j - 1}$ for $j = 1, 2, \ldots$ The customer stays after
+each of the first $j$ purchases with probability $(1 - p)^j$, so
+$F(j) = 1 - (1 - p)^j$. The quantile function $Q(u)$ is the smallest integer
+$j$ with $F(j) \ge u$.
+
+## Task A
+
+(a) Show that
+$$Q(u) = \left\lceil \frac{\log(1 - u)}{\log(1 - p)} \right\rceil.$$
+Hint: solve $F(j) \ge u$ for $j$, and remember that $\log(1 - p) < 0$.
+
+**Answer:**
+
+### Solution
+
+$$1 - (1 - p)^j \ge u
+  \iff (1 - p)^j \le 1 - u
+  \iff j \log(1 - p) \le \log(1 - u)
+  \iff j \ge \frac{\log(1 - u)}{\log(1 - p)},$$
+where the last step flips the inequality because $\log(1 - p) < 0$. The
+smallest integer $j$ that satisfies this is the ceiling.
+
+---
+
+(b) Write `rquit(n, p)`, which draws $J$ by inversion. Since $1 - U$ is also
+uniform, you can use $\log U$ in place of $\log(1 - U)$. The code below checks
+10,000 draws with $p = 0.3$ with a QQ plot against `qgeom(u, p) + 1`. (R's
+geometric counts the failures before the first success, so it starts at 0.
+`geom_qq` calls the quantile function with an argument named `p`, which here
+is the quantile level, not the quitting probability.)
+
+```{r a, skeleton = TRUE}
+rquit <- function(n, p) { rep(0, n) }
+
+set.seed(20261015)
+ggplot(tibble(sample = rquit(10000, 0.3)), aes(sample = sample)) +
+  geom_qq(distribution = function(p) qgeom(p, 0.3) + 1) +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+### Solution
+
+```{r sol-a}
+rquit <- function(n, p) ceiling(log(runif(n)) / log(1 - p))
+
+set.seed(20261015)
+ggplot(tibble(sample = rquit(10000, 0.3)), aes(sample = sample)) +
+  geom_qq(distribution = function(p) qgeom(p, 0.3) + 1) +
+  geom_abline(intercept = 0, slope = 1)
+```
+
+# Part B: Mixtures
+
+Now let $p$ vary across customers: draw $p \sim \text{Beta}(a, b)$, then
+$J \mid p$. Averaging $P(J > j \mid p) = (1 - p)^j$ over the Beta gives the
+tail of the mixture,
+$$P(J > j) = \E{(1 - p)^j} = \frac{B(a, b + j)}{B(a, b)},$$
+where $B$ is the beta function (`beta` in R). For large $j$ this behaves like
+a constant times $j^{-a}$, a power law. Since $a < 1$, $\E{J}$ is infinite.
+
+## Task B
+
+Write `rquit_mix(n)`, which draws $J$ from the mixture using your `rquit`.
+(`rquit` works with a vector `p`, one value per draw.) The code below
+compares the fraction of 10,000 draws with $J > j$ to the formula for
+$j = 1$, 10 and 100, then reports the mean and the largest draw.
+
+```{r b, skeleton = TRUE}
+rquit_mix <- function(n) { rep(1, n) }
+
+set.seed(20261015)
+J <- rquit_mix(10000)
+j <- c(1, 10, 100)
+rbind(simulated = sapply(j, function(k) mean(J > k)),
+      exact = beta(a, b + j) / beta(a, b))
+c(mean = mean(J), max = max(J))
+```
+
+Why can't you check the mean of $J$ the way you checked the tails?
+
+**Answer:**
+
+### Solution
+
+```{r sol-b}
+rquit_mix <- function(n) rquit(n, rbeta(n, a, b))
+
+set.seed(20261015)
+J <- rquit_mix(10000)
+j <- c(1, 10, 100)
+rbind(simulated = sapply(j, function(k) mean(J > k)),
+      exact = beta(a, b + j) / beta(a, b))
+c(mean = mean(J), max = max(J))
+```
+
+$\E{J}$ is infinite, so there is no number for the sample mean to settle
+near.
+
+# Part C: Accept-reject
+
+Suppose we had no `rbeta`. We want draws from
+$f(p) = p^{a - 1}(1 - p)^{b - 1} / B(a, b)$ with $a = 0.793$ and
+$b = 2.426$. Since $a < 1$, $f(p) \to \infty$ as $p \to 0$, so no $c$ makes
+$c \cdot 1 \ge f(p)$ and a $U(0, 1)$ candidate cannot work.
+
+Use the candidate density $g(p) = a p^{a - 1}$ on $(0, 1)$ instead. Its CDF is
+$p^a$, so we can draw from it by inversion, as $U^{1/a}$. Then
+$$\frac{f(p)}{g(p)} = \frac{(1 - p)^{b - 1}}{a B(a, b)} \le \frac{1}{a B(a, b)} = c,$$
+because $b > 1$ makes $(1 - p)^{b-1} \le 1$. Dividing by $c$, we accept a
+candidate $Y$ when $U \le (1 - Y)^{b - 1}$.
+
+## Task C
+
+Write `rbeta_ar(n)`, which proposes `n` candidates and returns the accepted
+ones. The code below checks the accepted draws from 10,000 candidates with a
+QQ plot against `qbeta`, and reports the acceptance rate with a 95%
+confidence interval next to $1/c$.
+
+```{r c, skeleton = TRUE}
+rbeta_ar <- function(n) { runif(n) }
+
+set.seed(20261015)
+p_draws <- rbeta_ar(10000)
+
+ggplot(tibble(sample = p_draws), aes(sample = sample)) +
+  geom_qq(distribution = qbeta, dparams = list(shape1 = a, shape2 = b)) +
+  geom_abline(intercept = 0, slope = 1)
+
+accepted <- length(p_draws)
+c(rate = accepted / 10000, prop.test(accepted, 10000)$conf.int, one_over_c = a * beta(a, b))
+```
+
+**Checkpoint:** put the QQ plot on screen.
+
+Does your interval contain $1/c$?
+
+**Answer:**
+
+### Solution
+
+```{r sol-c}
+rbeta_ar <- function(n) {
+  y <- runif(n)^(1 / a)
+  y[runif(n) <= (1 - y)^(b - 1)]
+}
+set.seed(20261015)
+p_draws <- rbeta_ar(10000)
+
+ggplot(tibble(sample = p_draws), aes(sample = sample)) +
+  geom_qq(distribution = qbeta, dparams = list(shape1 = a, shape2 = b)) +
+  geom_abline(intercept = 0, slope = 1)
+
+accepted <- length(p_draws)
+c(rate = accepted / 10000, prop.test(accepted, 10000)$conf.int, one_over_c = a * beta(a, b))
+```
+
+Yes. The interval contains $1/c = 0.475$.
+
+# Part D: The purchase process
+
+A customer's purchase times are drawn one after another: each is the one
+before plus an $\text{Exp}(\lambda)$ gap, and after each purchase the customer
+quits with probability $p$.
+
+## Task D
+
+Write `purchases(lambda, p, t)`, which returns the purchase times of one
+active customer over $t$ weeks. Stop when the next time passes $t$ or the
+customer quits.
+
+The code below simulates the data set: for each real customer it draws
+$\lambda$ and $p$, and counts their purchases over their own `T`. It
+compares the numbers of customers with 0, 1, ..., 6, and 7 or more repeat
+purchases with the real data (the paper's Figure 2). `mapply` calls the
+function once per customer, pairing the $i$th `lambda`, `p` and `T`.
+
+```{r d, skeleton = TRUE}
+purchases <- function(lambda, p, t) { c() }
+
+set.seed(20261015)
+lambda <- rgamma(nrow(cdnow), r, alpha)
+p <- rbeta(nrow(cdnow), a, b)
+simulated <- mapply(function(l, q, t) length(purchases(l, q, t)), lambda, p, cdnow$T)
+rbind(real = table(pmin(cdnow$x, 7)), simulated = table(pmin(simulated, 7)))
+```
+
+How many of your simulated customers made no repeat purchase? The real data
+has 1,411.
+
+**Answer:**
+
+### Solution
+
+```{r sol-d}
+purchases <- function(lambda, p, t) {
+  times <- c()
+  s <- rexp(1, lambda)
+  while (s <= t) {
+    times <- c(times, s)
+    if (runif(1) < p) break
+    s <- s + rexp(1, lambda)
+  }
+  times
+}
+
+set.seed(20261015)
+lambda <- rgamma(nrow(cdnow), r, alpha)
+p <- rbeta(nrow(cdnow), a, b)
+simulated <- mapply(function(l, q, t) length(purchases(l, q, t)), lambda, p, cdnow$T)
+rbind(real = table(pmin(cdnow$x, 7)), simulated = table(pmin(simulated, 7)))
+```
+
+1,386. The two rows are close.
+
+# Part E: Gibbs sampling
+
+For one customer with history $(x, t_x, T)$, the posterior of $(\lambda, p)$
+is the likelihood in the paper's equation (3) times the two priors, known only
+up to a constant. The likelihood has two terms because the customer either
+was still active at $T$ or quit right after their last purchase.
+
+Add a variable $Z$ for which case holds, with $Z = 1$ meaning still active.
+Given $Z$, the full conditionals are standard distributions:
+$$\lambda \mid Z \sim \text{Gamma}\big(r + x, \; \alpha + (T \text{ if } Z = 1, \text{ else } t_x)\big), \qquad
+p \mid Z \sim \text{Beta}(a + 1 - Z, \; b + x - 1 + Z),$$
+and, comparing the two terms of the likelihood,
+$$P(Z = 1 \mid \lambda, p) = \frac{(1 - p) e^{-\lambda (T - t_x)}}{p + (1 - p) e^{-\lambda (T - t_x)}}$$
+when $x > 0$. A customer with $x = 0$ has made no repeat purchase to quit
+after, so $Z = 1$.
+
+For a check, integrating $\lambda$ and $p$ out of each term against the priors
+gives the probability the customer is still active in closed form:
+$$P(Z = 1 \mid x, t_x, T) = \left[1 + \frac{a}{b + x - 1}\left(\frac{\alpha + T}{\alpha + t_x}\right)^{r + x}\right]^{-1}.$$
+
+## Task E
+
+Write `gibbs_customer(x, t_x, T, k)`, which cycles through $Z$, $\lambda$ and
+$p$ for `k` iterations and returns the draws. The code below runs it for
+customer 1, with $x = 2$, $t_x = 30.43$ and $T = 38.86$, for 5,000
+iterations. It makes a trace plot of $\lambda$, drops the first 500 draws,
+and compares the estimated probability that customer 1 is still active with
+the closed form.
+
+```{r e, skeleton = TRUE}
+gibbs_customer <- function(x, t_x, T, k) {
+  lambda <- (x + 1) / T
+  p <- 0.5
+  z <- 1
+  draws <- matrix(NA, k, 3, dimnames = list(NULL, c("lambda", "p", "active")))
+  for (i in 1:k) {
+    # draw z given lambda and p
+
+    # draw lambda given z
+
+    # draw p given z
+
+    draws[i, ] <- c(lambda, p, z)
+  }
+  draws
+}
+set.seed(20261015)
+chain <- gibbs_customer(2, 30.43, 38.86, 5000)
+
+tibble(iteration = 1:5000, lambda = chain[, "lambda"]) |>
+  ggplot(aes(iteration, lambda)) + geom_line()
+
+post <- chain[-(1:500), ]
+c(gibbs = mean(post[, "active"]),
+  exact = 1 / (1 + a / (b + 1) * ((alpha + 38.86) / (alpha + 30.43))^(r + 2)))
+```
+
+**Checkpoint:** put the trace plot on screen.
+
+Do the Gibbs and exact probabilities agree?
+
+**Answer:**
+
+### Solution
+
+```{r sol-e}
+gibbs_customer <- function(x, t_x, T, k) {
+  lambda <- (x + 1) / T
+  p <- 0.5
+  draws <- matrix(NA, k, 3, dimnames = list(NULL, c("lambda", "p", "active")))
+  for (i in 1:k) {
+    stay <- (1 - p) * exp(-lambda * (T - t_x))
+    z <- if (x == 0) 1 else rbinom(1, 1, stay / (p + stay))
+    lambda <- rgamma(1, r + x, alpha + if (z == 1) T else t_x)
+    p <- rbeta(1, a + 1 - z, b + x - 1 + z)
+    draws[i, ] <- c(lambda, p, z)
+  }
+  draws
+}
+set.seed(20261015)
+chain <- gibbs_customer(2, 30.43, 38.86, 5000)
+
+tibble(iteration = 1:5000, lambda = chain[, "lambda"]) |>
+  ggplot(aes(iteration, lambda)) + geom_line()
+
+post <- chain[-(1:500), ]
+c(gibbs = mean(post[, "active"]),
+  exact = 1 / (1 + a / (b + 1) * ((alpha + 38.86) / (alpha + 30.43))^(r + 2)))
+```
+
+Yes. Gibbs gives 0.737 and the closed form 0.727. The Gibbs estimate has a
+standard error of about 0.0075, so the gap is Monte Carlo error.
+
+# What the model predicts
+
+The Gibbs sampler gives draws of $(\lambda, p, Z)$ for any customer. Running
+it for each of the 214 customers with $x = 2$, and simulating the next 39
+weeks with `purchases` for every draw with $Z = 1$, predicts 1.04 purchases
+per customer in the holdout period. These customers made 1.39. The paper's
+equation (10) computes the same prediction without simulation, and it also
+gives 1.04.
