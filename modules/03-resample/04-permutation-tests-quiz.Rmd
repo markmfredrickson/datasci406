@@ -1,0 +1,77 @@
+---
+pagetitle: "Quiz 3.4: Permutation Tests"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 3.4**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+Each Flint home gives a difference $D_i$, first draw minus flushed. The
+sign-flip test uses $H_0$: each $D_i$ is symmetric about 0. What does the
+test condition on, and what does it rearrange?
+
+1. Conditions on $|D_i|$; flips the signs, all patterns equally likely.
+1. Conditions on $|D_i|$; makes each sign $+$ with the observed fraction of
+   positive $D_i$.
+1. Conditions on the first-draw values; shuffles the flushed values among
+   homes.
+1. Conditions on nothing; resamples the $D_i$ with replacement.
+
+## Question 2 (1 point)
+
+A two-sample permutation test of $H_0: F = G$ uses the difference in means.
+A student keeps the same label shuffles and computes the difference in
+medians instead. Which is true of the new test?
+
+1. Under $F = G$ it still rejects at most 5% of the time; its power can
+   change.
+1. Under $F = G$ it no longer rejects 5% of the time, since the median has no
+   simple null distribution.
+1. It gives the same $p$-value, since the shuffles are the same.
+1. It tests equal medians, so it rejects 5% of the time whenever the medians
+   are equal.
+
+## Question 3 (1 point)
+
+Before computers, books printed tables of the rank-sum test's null
+distribution, but not of the permutation null of the difference in means.
+Why could the rank-sum null be tabulated?
+
+1. Ranks are approximately normal, so one normal table serves every
+   sample.
+1. Without ties, its null depends only on $m$ and $n$, not on the data.
+1. The rank sum is always symmetric about 0, so half the table suffices.
+1. The difference in means needs $\sigma^2$, which a table cannot know.
+
+## Question 4 (1 point)
+
+In Part D.3, casual riders on the 231 other days had an SD of about 870,
+against 390 on the 500 working days. After centering each group at 0, the
+permutation test of the difference in means rejected 14% of the time at
+5%, and Welch's statistic about 6%. Why does the difference in means reject
+too often?
+
+1. $B = 400$ shuffles is too few, so the $p$-values are too small.
+1. Casual riders are skewed, so means are less stable than medians.
+1. Shuffling pools the two spreads, so the permutation SE is too small when
+   the smaller group has the larger spread.
+1. Centering each group made the means unequal, so $H_0$ was false.
+

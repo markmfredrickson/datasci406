@@ -20,8 +20,13 @@ modules/02-generate/05-unnormalized-densities-quiz.Rmd
 modules/02-generate/project.Rmd
 modules/02-generate/06-counting-customers.Rmd
 modules/02-generate/06-counting-customers-practice.Rmd
+modules/03-resample/01-bootstrap-quiz.Rmd
+modules/03-resample/02-leave-one-out-quiz.Rmd
+modules/03-resample/03-structured-data-quiz.Rmd
+modules/03-resample/04-permutation-tests-quiz.Rmd
 modules/03-resample/project_a.Rmd
 modules/03-resample/project_b.Rmd
 modules/03-resample/project_c.Rmd
 modules/03-resample/project_d.Rmd
 modules/03-resample/project_e.Rmd
+modules/03-resample/06-coin-flips.Rmd

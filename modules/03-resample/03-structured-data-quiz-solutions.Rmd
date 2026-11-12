@@ -1,0 +1,126 @@
+---
+pagetitle: "Quiz 3.3: Resampling Structured Data"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 3.3**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+A line is fit to Lake Huron's level against year, and the residuals are
+positively correlated at short lags. Resampling single residuals gives an SE
+for the slope close to the one from `summary`. Resampling blocks of 10
+residuals gives about twice that. Why does resampling single residuals
+understate the SE?
+
+1. A single residual has a smaller variance than the average of a block of
+   residuals, so the noise is too small.
+1. Least squares makes the residuals sum to 0, so resampling single
+   residuals understates the noise about the line.
+1. The bootstrap series have independent noise, without the runs of high
+   and low years that tilt the real line.
+1. With $\ell = 1$ there are fewer distinct bootstrap samples, so the
+   bootstrap distribution is too narrow.
+
+### Solution
+
+**Answer: 3.** Runs of high or low years tilt the line, so the real slope
+varies more than independent noise says. Single residuals give independent
+noise, which is what `summary` assumes. Blocks keep the runs. Option 1 has
+the variances backwards. Option 2 is true but unrelated to dependence.
+Option 4: the number of distinct samples does not set the SE.
+
+## Question 2 (1 point)
+
+Part C regressed daily temperature on a 2012 indicator plus a yearly cycle
+and block-bootstrapped the residuals. A student leaves out the cycle,
+regresses temperature on the indicator alone, and block-bootstraps those
+residuals. The SE of the 2012 effect rises with every $\ell$ tried, from 0.6
+at $\ell = 1$ to 4.5 at $\ell = 90$, and never levels off. What is wrong?
+
+1. The blocks are too short. With a yearly cycle the dependence reaches a
+   year, so $\ell$ has to be 365 or more.
+1. The residuals are not stationary. A January block and a July block sit
+   at different levels and are not interchangeable.
+1. The residuals are dependent. The block bootstrap needs independent
+   values, which only the differences between days provide.
+1. The residuals are not normal. The block bootstrap needs normal noise,
+   which only the fit with the cycle provides.
+
+### Solution
+
+**Answer: 2.** Blocks handle dependence. What they need is stationarity: a
+block from any part of the series could have come from any other part.
+With the cycle left in, January blocks are low and July blocks high, and a
+longer block carries more of the cycle, so the SE keeps growing. With the
+cycle fitted, the SE levels off near 0.47 by $\ell = 14$. Option 1: longer
+blocks make it worse. Option 3 confuses stationarity with independence;
+blocks exist so that independence is not needed. Option 4: nothing in the
+method needs normality.
+
+## Question 3 (1 point)
+
+For a regression of $y$ on $x$, the residuals plotted against $x$ spread out
+as $x$ grows. The slope is a smooth statistic, so each method below gives
+an SE for it. Which one is misleading here?
+
+1. Cases: draw $n$ rows $(x_i, y_i)$ with replacement, and refit the line
+   to them.
+1. Errors: $y_i^* = \hat y_i + e_i^*$, with $e_i^*$ drawn from the
+   residuals, and refit.
+1. Wild: $y_i^* = \hat y_i + e_i V_i$, with $V_i = \pm 1$ at random, and
+   refit.
+1. Jackknife: leave out one row at a time, refit, and use the spread of the
+   $n$ slopes.
+
+### Solution
+
+**Answer: 2.** Resampling errors moves residuals from one $x$ to another.
+The extreme $x$ values have the most leverage, so if the errors are largest
+there the SE is understated, and if smallest, overstated. Cases, wild and
+the jackknife never move a residual away from its $x$. Plot the residuals
+against $x$ before resampling errors.
+
+## Question 4 (1 point)
+
+The interquartile range of the high school graduation rate across the 50
+states is bootstrapped two ways. Resampling states within each of the four
+census regions, keeping each region's count, gives an SE of 2.4. Resampling
+all 50 states gives 3.0. Why is the second SE larger?
+
+1. The count from each region varies from sample to sample, and the
+   regions differ.
+1. Each region is a smaller pool, so within-region samples repeat states
+   more often.
+1. The IQR is not smooth, and the plain bootstrap overstates the SE of such
+   statistics.
+1. States within a region are alike, so the within-region spread is biased
+   downward.
+
+### Solution
+
+**Answer: 1.** The South is low and the West high. Resampling all 50
+varies the count from each region, which the data never do, and that adds
+spread. Resampling within regions keeps the counts fixed. Option 2:
+repeats are how every bootstrap sample is built. Option 3: the IQR is
+smooth enough; the failure was the max. Option 4: there is no bias, and
+within-group resampling matches how the data arose.
+
+**Rubric.** 1 pt per question, no partial credit.
