@@ -1,0 +1,465 @@
+---
+pagetitle: "Module 3 Practice Exam"
+output:
+  pdf_document: default
+header-includes:
+  - \usepackage{array}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\Cov}[1]{\text{Cov}\left(#1\right)}
+
+<!-- Numbers in the solutions come from 06-coin-flips.Rmd as rendered with
+     its seed, 20261112, which is the worked copy students have. Same format
+     as Exam 3: a title page that maps the parts, then Parts A-E each open
+     with 2 points for writing down values from the printed project, followed
+     by one 7-point question in two parts, and Part F is one 5-point question
+     in two parts: 50 total. In each part, (a) asks how the method was
+     implemented and what it estimates, and (b) asks what the printed
+     results mean. Nothing here repeats a quiz item or an Exam 3 item. -->
+
+**DATASCI 406 FA 26 --- Module 3 Practice Exam**
+
+This practice exam asks about the Fair Coins practice project. Exam 3 has
+the same format and asks the same kinds of question about your own project,
+so work this one with your printed practice project in front of you.
+
+- 80 minutes, 50 points.
+- Paper notes only: your printed project and anything else on paper. No electronic devices.
+- Parts A to E each open with 2 points for writing down values from your printed project, then one 7-point question that uses them.
+- Part F is one 5-point question and uses no project values.
+- Before you start, flag the printout of each task's chunk. The table lists the values each part uses.
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}
+\small
+\begin{tabular}{|>{\raggedright\arraybackslash}p{1.45in}|c|c|>{\raggedright\arraybackslash}p{2.55in}|>{\raggedright\arraybackslash}p{1.15in}|}
+\hline
+\textbf{Part} & \textbf{Points} & \textbf{Page} & \textbf{Values to write down} & \textbf{Question} \\
+\hline
+A. The bootstrap & 9 & 2 & Task A: the bootstrap SE of $s$ and the 95\% percentile interval & 1: two parts. Refers to Task A \\
+\hline
+B. Leave one out & 9 & 3 & Task B: the jackknife SE of $s$, and $s$ without the top person & 2: two parts. Refers to Tasks A and B \\
+\hline
+C. Resampling structured data & 9 & 4 & Task C: the within-person SE of $s$ and the people SE & 3: two parts. Refers to Task C \\
+\hline
+D. Permutation tests & 9 & 5 & Task D: the null mean of $s$ and $\hat\tau$ with everyone & 4: two parts. Refers to Task D \\
+\hline
+E. Permutation tests for vectors and tables & 9 & 6 & Task E: $r$ and $\hat\tau$ with everyone & 5: two parts. Refers to Tasks D and E \\
+\hline
+F. Big picture & 5 & 7 & none & 6: two parts \\
+\hline
+\textbf{Total} & \textbf{50} & & & \\
+\hline
+\end{tabular}
+\end{center}
+
+\vspace{1em}
+
+Exam 3 opens with a page like this one. The questions start on the next page.
+
+\newpage
+
+**DATASCI 406 FA 26 --- Module 3 Practice Exam**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+# Part A: The bootstrap (9 points)
+
+## Values from your project (2 points)
+
+Question 1 uses these. From Task A, write down the bootstrap SE of $s$ and
+the 95% percentile interval for $s$.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+1 pt each. SE 0.0049, interval (0.0097, 0.028).
+
+- The bias, $-0.0008$, in place of the SE: 0 for that value.
+- One endpoint of the interval: 0 for that value.
+
+## Question 1 (7 points)
+
+**(a)** (4 points) Describe what `boot_people` does: what it draws, how
+many, with or without replacement, and what it computes on each draw. What
+does the SD of the 2000 values estimate, and what does the bootstrap assume
+about the 48 people for that estimate to make sense?
+
+<!-- answer-space: 1.6in -->
+
+**(b)** (3 points) $s = 0.019$ is the SD of the 48 same-side rates, and the
+noise-only SD is 0.0076. Using your SE and interval, say what the bootstrap
+tells you about whether people differ in their same-side probability, and
+how strong that evidence is.
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(a)** 4 pts
+
+- 1 pt: it draws 48 rows, one per person, with replacement from the 48
+  rows, 2000 times. A person can appear 0, 1, 2 or more times in a sample.
+  - Without replacement: 0 for this point. That only reorders the rows.
+- 1 pt: on each sample it computes $s$, the SD of the 48 rates.
+- 1 pt: the SD of the 2000 values estimates the SE of $s$: how much $s$
+  would vary across repeated samples of 48 people from the population of
+  people who flip coins.
+- 1 pt: it assumes the 48 people are a random sample from that population,
+  so that their empirical distribution $\hat F$ can stand in for $F$. A
+  row carries a person's $n$ and counts, so the rows are the sampled units.
+
+**(b)** 3 pts
+
+- 1 pt: $s$ measures the spread of the rates across people, and part of
+  that spread is binomial noise: even people with identical $p$ would show
+  a spread of about 0.0076. So the question is whether 0.019 is clearly
+  above 0.0076.
+- 1 pt: the SE of 0.0049 says $s$ is uncertain by about a quarter of its
+  value, and the interval (0.0097, 0.028) lies entirely above 0.0076.
+- 1 pt: so people appear to differ, but the lower end of the interval is
+  not far above the noise-only level, so this evidence is modest. Part D
+  settles the question with a test.
+  - "People differ because 0.019 > 0.0076" with no use of the SE or the
+    interval: 1 pt in total.
+
+\newpage
+
+# Part B: Leave one out (9 points)
+
+## Values from your project (2 points)
+
+Question 2 uses these. From Task B, write down the jackknife SE of $s$ and
+the value of $s$ without the top person.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+1 pt each. Jackknife SE 0.0055, and $s = 0.014$ without the top person.
+
+- The top person's rate, 0.60, in place of $s$ without them: 0 for that
+  value.
+- The bootstrap SE, 0.0049, in place of the jackknife SE: 0 for that value.
+
+## Question 2 (7 points)
+
+**(a)** (4 points) Describe how the jackknife SE in Task B was computed:
+what `jackknife` returns, how many values, and how `jack_se` turns them
+into an SE. What does the jackknife SE estimate, and how does that compare
+with what Part A's bootstrap SE estimates?
+
+<!-- answer-space: 1.6in -->
+
+**(b)** (3 points) Interpret the two values: the jackknife SE of 0.0055
+against the bootstrap's 0.0049, and $s = 0.014$ without the top person
+against 0.019 with everyone. What do they say about $s$ as an estimate of
+how much people differ?
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(a)** 4 pts
+
+- 1 pt: `jackknife` leaves out one person at a time and computes $s$ from
+  the other 47, giving 48 leave-one-out values.
+- 1 pt: `jack_se` takes the squared deviations of the 48 values from their
+  mean, sums them, scales by $(k - 1)/k$, and takes the square root. No
+  random numbers are involved: each leave-one-out sample is used once.
+- 1 pt: it estimates the SE of $s$, the same target as Part A: the SD of
+  $s$ across samples of 48 people from the population.
+- 1 pt: the bootstrap reaches that target by simulation, with 2000 random
+  samples from $\hat F$ and some Monte Carlo error. The jackknife reaches
+  it from 48 fixed recomputations, and works because $s$ is a smooth
+  statistic.
+  - "The jackknife estimates bias and the bootstrap estimates the SE": 0
+    for the last two points. Both estimate the SE here.
+
+**(b)** 3 pts
+
+- 1 pt: the two SEs agree to within about 10%, so either is a fair SE for
+  $s$, and the two methods are telling the same story.
+- 1 pt: leaving out the top person moves $s$ by 0.005, about one SE. One
+  person in 48 changes $s$ by as much as the whole sampling uncertainty.
+- 1 pt: so $s$, and any statement about how much people differ, leans
+  heavily on this one person, whose rate is 0.60. The other 47 leave-one-out
+  values barely move $s$. That is why Tasks D and E repeat their analyses
+  without the top person.
+  - "The top person is an outlier and should be removed": 1 of the 3 in
+    total. Nothing in the project says the rate of 0.60 is an error.
+
+\newpage
+
+# Part C: Resampling structured data (9 points)
+
+## Values from your project (2 points)
+
+Question 3 uses these. From Task C, write down the within-person SE of
+$s$ and the people SE.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+1 pt each. Within-person SE 0.0013, people SE 0.0049.
+
+- The two values swapped: 1 pt in total.
+- The noise-only SD, 0.0076, in place of the within-person SE: 0 for that
+  value.
+
+## Question 3 (7 points)
+
+**(a)** (4 points) Describe how `boot_within` resamples: what is drawn, from
+what distribution, what stays fixed, and what statistic is computed. Why
+does the project say this is the same as resampling each person's flips
+with replacement? What does its SE estimate?
+
+<!-- answer-space: 1.6in -->
+
+**(b)** (3 points) Interpret the two SEs: 0.0013 from resampling within
+people against 0.0049 from resampling people. What does each one measure,
+and which would you report for a claim about people who flip coins in
+general?
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(a)** 4 pts
+
+- 1 pt: it keeps the 48 people and their $n_i$, draws each person a new
+  same-side count from Binomial($n_i$, rate$_i$), divides by $n_i$ for a
+  new rate, and computes $s$ on the 48 new rates, 2000 times.
+- 1 pt: resampling a person's $n_i$ flips with replacement makes each draw
+  same-side with probability rate$_i$, independently, and the number of
+  same-side draws is then Binomial($n_i$, rate$_i$). `rbinom` gives that
+  count without touching 350,757 flips.
+- 1 pt: fixed: who the 48 people are and their $n_i$. Varying: each
+  person's rate, by binomial noise only.
+- 1 pt: its SE estimates how much $s$ would change if these same 48 people
+  flipped again with their $p_i$ unchanged: the uncertainty from flips
+  alone.
+
+**(b)** 3 pts
+
+- 1 pt: 0.0013 is the uncertainty in $s$ from flips alone, with the people
+  fixed. 0.0049 also includes the variation in which 48 people were
+  sampled, which is most of it.
+- 1 pt: report the people SE. A claim about people in general is a claim
+  about the population the 48 were drawn from, and a new study would have
+  48 different people.
+- 1 pt: the within-person SE answers a question about these 48 people
+  only, as if they were the whole population of interest, in the way the
+  four regions were the whole structure in deck 3.
+  - Choosing the within-person SE because it is smaller: 0 for the last
+    two points.
+
+\newpage
+
+# Part D: Permutation tests (9 points)
+
+## Values from your project (2 points)
+
+Question 4 uses these. From Task D, write down the null mean of $s$ and
+$\hat\tau$ with everyone.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+1 pt each. Null mean 0.0075 and $\hat\tau = 0.018$.
+
+- The $p$-value, 0.001, in place of either: 0 for that value.
+- $\hat\tau$ without the top person, 0.012: 0 for that value.
+
+## Question 4 (7 points)
+
+Both tests in Task D gave $p = 1/1001$: no shuffle reached the observed $s$.
+
+**(a)** (4 points) State the null hypothesis Task D tests, and describe how
+`shuffle_flips` generates data from it: what is rearranged, what is held
+fixed, and what statistic is computed on each shuffle. Why does rearranging
+flips, rather than the 48 rates, give the null distribution of $s$?
+
+<!-- answer-space: 1.6in -->
+
+**(b)** (3 points) Interpret the results: the null mean of $s$ is 0.0075,
+no shuffle reached the observed 0.019, and $\hat\tau$ is 0.018 with
+everyone and 0.012 without the top person. What do you conclude about
+whether people differ, and by how much? What does the run without the top
+person add?
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(a)** 4 pts
+
+- 1 pt: $H_0$: every person has the same $p$, so $\tau = 0$. Every flip is
+  same-side with the same probability, whoever flipped it.
+- 1 pt: held fixed: each person's flip count $n_i$ and the total number of
+  same-side flips. Rearranged: which of the 350,757 flips are same-side,
+  by drawing that many flip slots without replacement; `tabulate` counts
+  them by person, and $s$ is computed on the resulting 48 rates, 1000
+  times.
+- 1 pt: under $H_0$ the flips are exchangeable across people, so every
+  rearrangement is equally likely, and the 1000 values of $s$ are its null
+  distribution. The $p$-value is the fraction at or above the observed $s$.
+- 1 pt: shuffling the 48 rates among people leaves the same 48 numbers in
+  place, so $s$ never changes and there is nothing to compare with.
+
+**(b)** 3 pts
+
+- 1 pt: under $H_0$, $s$ would be about 0.0075, which matches the
+  noise-only SD. The observed 0.019 is far above anything 1000 shuffles
+  produced, so reject $H_0$: people differ in their same-side probability.
+  $1/1001$ is the smallest $p$-value 1000 shuffles can give.
+- 1 pt: $\hat\tau = 0.018$ estimates the SD of the $p_i$ across people. A
+  typical person's same-side probability is within about 0.02 of 0.51, so
+  roughly 0.49 to 0.53, and the top person at 0.60 is well outside that.
+- 1 pt: without the top person the test still rejects, so the conclusion
+  that people differ does not rest on one person. $\hat\tau$ falls to
+  0.012, so the size of the differences does depend on them.
+
+\newpage
+
+# Part E: Permutation tests for vectors and tables (9 points)
+
+## Values from your project (2 points)
+
+Question 5 uses these. From Task E, write down $r$ and $\hat\tau$ with
+everyone.
+
+<!-- answer-space: 0.8in -->
+
+### Solution
+
+1 pt each. $r = 0.71$ and $\hat\tau = 0.017$.
+
+- The values without the top person, 0.54 and 0.012: 1 pt in total.
+- Part D's $\hat\tau$, 0.018, in place of Part E's: 0 for that value.
+
+## Question 5 (7 points)
+
+**(a)** (4 points) State the null hypothesis Task E tests, and describe how
+`pair_null` generates data from it: what is rearranged, what is held fixed,
+and what statistic is computed. Why is this $H_0$ true when $\tau = 0$, so
+that Task E tests the same thing as Task D in a different way?
+
+<!-- answer-space: 1.6in -->
+
+**(b)** (3 points) Interpret the results: $r = 0.71$ with $p = 0.0001$, and
+$\hat\tau = 0.017$ from $\sqrt{\Cov{\text{rate}_h, \text{rate}_t}}$,
+against Part D's 0.018. What does the correlation between a person's two
+rates tell you, and why does the agreement of the two $\hat\tau$ values
+matter?
+
+<!-- answer-space: 1.3in -->
+
+### Solution
+
+**(a)** 4 pts
+
+- 1 pt: $H_0$: rate$_h$ and rate$_t$ are independent across people.
+- 1 pt: held fixed: the 48 values of rate$_h$ and the 48 values of
+  rate$_t$. Rearranged: the pairing, by shuffling rate$_t$ against
+  rate$_h$ with `sample(y)`, so every matching is equally likely under
+  $H_0$. $r$ is computed on each of 10,000 matchings, and the two-sided
+  $p$-value compares $|r^*|$ with $|r|$.
+- 2 pts: if $\tau = 0$, every person has the same $p$. Then rate$_h$ is
+  $p$ plus binomial noise from the heads-start flips and rate$_t$ is $p$
+  plus noise from the tails-start flips. The two noises come from different
+  flips, so nothing ties a person's two rates together: they are
+  independent. If $\tau > 0$, both track the same $p_i$ and are positively
+  correlated, so rejecting independence rejects $\tau = 0$.
+  - 1 of the 2 for "if everyone has the same $p$ the two rates are
+    unrelated" without saying that the noises come from different flips.
+
+**(b)** 3 pts
+
+- 1 pt: $r = 0.71$ with $p = 0.0001$: a person whose heads-start flips
+  often land heads also has tails-start flips that often land tails. A
+  person's same-side tendency is a property of the person, not noise in
+  one half of their data. This is Part D's conclusion again: people
+  differ.
+- 1 pt: $\hat\tau = 0.017$ estimates the same SD of the $p_i$ as Part D's
+  0.018, and the two agree.
+- 1 pt: they remove the binomial noise in different ways. Part D subtracts
+  the null average of $s^2$; Part E uses two halves whose noise is
+  independent, so the covariance has no noise to subtract. Agreement is a
+  check that both are measuring the spread of the $p_i$ and not an
+  artifact of one method.
+
+\newpage
+
+# Part F: Big picture (5 points)
+
+## Question 6 (5 points)
+
+The paper's own question is whether a coin lands on its starting side more
+than half the time. The pooled rate over all 350,757 flips is 0.508.
+
+**(a)** (2 points) If the flips were independent with one $p$, the SE of
+the pooled rate would be $\sqrt{0.5 \times 0.5 / 350{,}757} \approx 0.0008$.
+Using what the project found, say why that SE is too small, and what you
+would resample to get a better one.
+
+<!-- answer-space: 1.3in -->
+
+**(b)** (3 points) Suppose instead you want to test whether the same-side
+rate depends on which side the coin started on, using each person's
+rate$_h$ and rate$_t$ from Part E. What would you rearrange, and why does
+that give the null distribution of your statistic?
+
+<!-- answer-space: 1.6in -->
+
+### Solution
+
+**(a)** 2 pts
+
+- 1 pt: Parts D and E found $\tau > 0$: people differ, so the flips are
+  not independent draws with one $p$. Flips from the same person share
+  that person's $p_i$, and the pooled rate depends on which 48 people were
+  sampled, which the binomial SE ignores.
+- 1 pt: resample people with replacement, as in Part A, and recompute the
+  pooled rate from each bootstrap sample. The SE comes out about
+  0.002, more than twice the binomial SE; the number is not required.
+  - Resampling flips within people, as in Part C: 0 for this point. It
+    gives back the binomial SE.
+
+**(b)** 3 pts
+
+- 1 pt: within each person, swap rate$_h$ and rate$_t$ at random, which
+  flips the sign of $D_i = \text{rate}_h - \text{rate}_t$, and recompute a
+  statistic such as the mean of the $D_i$ for all $2^{48}$ sign patterns
+  or $B$ random ones. This is the sign-flip test of deck 4, with a person
+  in place of a Flint home.
+- 2 pts: under $H_0$ the starting side makes no difference, so a person's
+  two rates are exchangeable: (rate$_h$, rate$_t$) and (rate$_t$,
+  rate$_h$) have the same distribution. Condition on each person's pair of
+  values; given them, each sign is a fair coin, independently of the
+  others, so the flipped statistics are the null distribution.
+  - 1 of the 2 for "under $H_0$ the two rates are exchangeable" with no
+    reason.
+  - Shuffling rate$_t$ against rate$_h$ across people: 0 for this part.
+    That is Part E's test of independence, and it rejects whether or not
+    the starting side matters.
+  - Shuffling the 96 rates between two unpaired groups of 48: 1 pt in
+    total. People differ, so rates from different people are not
+    exchangeable, and the pairing has to be kept.
+  - Bootstrapping people: 0. The bootstrap does not impose $H_0$.
