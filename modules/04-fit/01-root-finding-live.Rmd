@@ -1,0 +1,299 @@
+---
+title: "Root Finding: Through Part A"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 4: Fit, Session 1"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(20261119)
+library(tidyverse)
+```
+
+## Today
+
+
+| Concept | Project |
+|---|---|
+| fitting as optimization, bisection, Newton's method | A.1 |
+| Newton's method dangers and solutions | A.2 |
+| finding quantiles by Newton | A.3 |
+| standard errors: information, bootstrap, sandwich | A.4 |
+
+More depth and additional concepts covered in video.
+
+# Fitting as Optimization
+
+## Optimization
+
+Many estimators minimize an average loss: $\hat\theta = \arg\min_\theta \frac{1}{n} \sum_{i=1}^n L(X_i, \theta)$.
+
+- **Mean:** squared loss, $L = (x - \theta)^2$.
+- **Median:** absolute loss, $L = |x - \theta|$.
+- **MLE:** $L = -\log f(x \mid \theta)$, so the minimum is the maximum of the log-likelihood.
+
+At an interior minimum the derivative is 0, so $\hat\theta$ solves $\sum_i L'(X_i, \theta) = 0$: a **root**.
+
+## Score Equation
+
+An MLE solves $\ell'(\theta) = 0$, so fitting a model means finding a **root**.
+
+Ozone, $X_i \iid \text{Gamma}(\alpha, \beta)$: setting $\partial \ell / \partial \beta = 0$ gives $\hat\beta = \alpha / \bar x$. Then $\hat\alpha$ solves
+$$g(\alpha) = \log \alpha - \text{digamma}(\alpha) - c = 0, \qquad c = \log \bar x - \frac{1}{n} \sum_{i=1}^n \log x_i.$$
+
+```{r g-def}
+oz <- as.numeric(na.omit(airquality$Ozone))
+c0 <- log(mean(oz)) - mean(log(oz))
+g <- function(a) log(a) - digamma(a) - c0
+```
+
+## No Closed Form
+
+No rearrangement of $g(\alpha) = 0$ gives $\alpha = \cdots$, so we **iterate**:
+
+1. Start from a guess $\alpha_0$.
+2. Use $\alpha_k$ and $g$ to compute a better $\alpha_{k+1}$.
+3. Stop when $\alpha_{k+1}$ is close enough to $\alpha_k$.
+
+```{r g-plot, echo=FALSE, fig.height=1.5, fig.width=6}
+ggplot() + geom_function(fun = g, xlim = c(0.3, 6)) +
+  geom_hline(yintercept = 0, lty = 2) + labs(x = "alpha", y = "g(alpha)")
+```
+
+## Bisection
+
+If $g$ is continuous and $g(a)$, $g(b)$ have opposite signs, $g$ has a root in the **bracket** $[a, b]$.
+
+1. Let $m = (a + b) / 2$.
+2. If $g(a)$ and $g(m)$ have opposite signs, set $b \leftarrow m$. Otherwise set $a \leftarrow m$.
+3. Repeat until $b - a < \epsilon$.
+
+Each step halves the bracket: $\lceil \log_2((b - a)/\epsilon) \rceil$ steps in all.
+
+`uniroot(g, c(a, b))` uses a bracket too, with faster steps inside it.
+
+# Newton's Method
+
+## Tangent Line
+
+Replace $g$ near $x_0$ by its tangent line, and solve for where the tangent crosses 0:
+$$g(x_0) + g'(x_0)(x - x_0) = 0 \quad \Rightarrow \quad x_1 = x_0 - \frac{g(x_0)}{g'(x_0)}.$$
+
+```{r step-plot, echo=FALSE, fig.height=1.9, fig.width=6}
+dg <- function(a) 1 / a - trigamma(a)
+x0 <- 1
+x1 <- x0 - g(x0) / dg(x0)
+ggplot() + geom_function(fun = g, xlim = c(0.9, 1.9)) +
+  geom_hline(yintercept = 0, lty = 2) +
+  annotate("segment", x = x0, y = g(x0), xend = x1, yend = 0, color = "red",
+           arrow = arrow(length = unit(0.1, "inches"))) +
+  annotate("segment", x = x1, y = 0, xend = x1, yend = g(x1), color = "red",
+           arrow = arrow(length = unit(0.1, "inches"))) +
+  annotate("point", x = c(x0, x1), y = c(g(x0), g(x1)), color = "red", size = 2) +
+  labs(x = "alpha", y = "g(alpha)")
+```
+
+For the gamma, $g'(\alpha) = 1/\alpha - \text{trigamma}(\alpha)$.
+
+## Newton in R
+
+```{r newton}
+newton <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    x[i + 1] <- x[i] - g(x[i]) / dg(x[i])
+    if (is.nan(x[i + 1]) || abs(x[i + 1] - x[i]) < tol) break
+  }
+  x
+}
+dg <- function(a) 1 / a - trigamma(a)
+```
+
+Start from the method of moments, $\alpha_0 = \bar x^2 / s^2$, which has a closed form.
+
+## Newton Iterates
+
+```{r newton-oz}
+path <- newton(g, dg, mean(oz)^2 / var(oz))
+ahat <- path[length(path)]
+data.frame(alpha = path, error = abs(path - ahat))
+```
+
+- The number of correct digits doubles each step: **quadratic convergence**.
+- Bisection from $[1, 20]$ needs `r ceiling(log2(19 / 1e-10))` steps to reach $10^{-10}$.
+
+##  {.standout}
+
+Complete A.1
+
+# Newton Failures
+
+## Parameter Space
+
+The gamma shape must be positive: $\alpha > 0$ is the **parameter space**.
+
+Newton has no guard:
+
+1. The step is $-g(\alpha_k) / g'(\alpha_k)$. A small $g'$ makes a big step.
+2. $g$ is nearly flat for large $\alpha$, so a start far to the right takes a big step left.
+3. If the step passes 0, $\log \alpha$ is undefined and every later iterate is `NaN`.
+
+## First Newton Step
+
+```{r newton-fail, warning=FALSE}
+newton(g, dg, 4)
+```
+
+```{r first-step, echo=FALSE, fig.height=1.6, fig.width=6}
+a_bad <- uniroot(\(a) a - g(a) / dg(a), c(ahat, 10))$root
+tan_df <- data.frame(x0 = c(2.5, a_bad, 4))
+tan_df$x1 <- tan_df$x0 - g(tan_df$x0) / dg(tan_df$x0)
+tan_df$col <- c("steelblue", "black", "red")
+ggplot() +
+  annotate("rect", xmin = -Inf, xmax = 0, ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.15) +
+  annotate("text", x = -1, y = 0.3, label = "alpha < 0", color = "red3", size = 3.5) +
+  geom_function(fun = g, xlim = c(0.75, 6)) +
+  geom_hline(yintercept = 0, lty = 2) +
+  annotate("segment", x = tan_df$x1, xend = tan_df$x0, y = 0, yend = g(tan_df$x0),
+           color = tan_df$col) +
+  annotate("point", x = c(tan_df$x0, tan_df$x1), y = c(g(tan_df$x0), rep(0, 3)),
+           color = rep(tan_df$col, 2), size = 2) +
+  annotate("text", x = tan_df$x0, y = g(tan_df$x0), label = round(tan_df$x0, 2),
+           color = tan_df$col, vjust = 1.8) +
+  coord_cartesian(xlim = c(-2, 6), ylim = c(-0.3, 0.45)) +
+  labs(x = "alpha", y = "g(alpha)")
+```
+
+Every start past `r round(a_bad, 2)`, about twice $\hat\alpha = `r round(ahat, 2)`$, lands below 0.
+
+## Step Halving
+
+Halve the step until the new point is positive and $|g|$ is smaller.
+
+```{r newton-halve}
+newton_halve <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    step <- -g(x[i]) / dg(x[i])
+    while (x[i] + step <= 0 || abs(g(x[i] + step)) > abs(g(x[i])))
+      step <- step / 2
+    x[i + 1] <- x[i] + step
+    if (abs(step) < tol) break
+  }
+  x
+}
+```
+
+## Halving from $\alpha_0 = 4$
+
+```{r newton-halve-run}
+newton_halve(g, dg, 4)
+```
+
+- The first full step would land below 0, so it is halved.
+- Near the root the full step is accepted, so convergence is still quadratic.
+
+##  {.standout}
+
+Complete A.2
+
+# Quantiles by Newton
+
+## Quantiles as Roots
+
+The $u$ quantile of $F$ solves $F(q) - u = 0$. The derivative of $F$ is the density $f$:
+$$q \leftarrow q - \frac{F(q) - u}{f(q)}.$$
+
+```{r q-data, include=FALSE}
+cells <- read.csv("../../data/brain_cells.csv.gz")
+y <- cells$library[cells$batch == 2]
+c_y <- log(mean(y)) - mean(log(y))
+a_y <- uniroot(\(a) log(a) - digamma(a) - c_y, c(1, 20), tol = 1e-10)$root
+b_y <- a_y / mean(y)
+```
+
+Library sizes `y` of the `r length(y)` cells in batch 2, with a gamma fit as in A.1: $\hat\alpha = `r round(a_y, 3)`$.
+
+```{r q-newton}
+h <- function(q) pgamma(q, a_y, b_y) - 0.99
+dh <- function(q) dgamma(q, a_y, b_y)
+q <- newton(h, dh, mean(y))
+c(newton = q[length(q)], qgamma = qgamma(0.99, a_y, b_y),
+  data = unname(quantile(y, 0.99)))
+```
+
+##  {.standout}
+
+Complete A.3
+
+# Standard Errors
+
+## Sampling Distribution
+
+The **standard error** of $\hat\theta$ is the standard deviation of its sampling distribution.
+
+- In large samples $\hat\theta$ is approximately normal, so $\hat\theta \pm 2\,\text{SE}$ is a 95% interval.
+- For an MLE under the model, $\hat\theta \approx N(\theta, 1/(n I(\theta)))$, where $I$ is the Fisher information.
+
+Three ways to estimate the SE:
+
+| Method | Assumes the model? |
+|---|---|
+| information: curvature of $\ell$ at $\hat\theta$ | yes |
+| bootstrap: refit to resamples | no |
+| sandwich: curvature and the spread of each observation's score | no |
+
+## Information SE
+
+A sharper peak in $\ell$ means a smaller SE. With $\ell_p''(\hat\alpha) = n g'(\hat\alpha)$:
+$$\text{SE}(\hat\alpha) \approx \frac{1}{\sqrt{-\ell_p''(\hat\alpha)}} = \frac{1}{\sqrt{-n g'(\hat\alpha)}}.$$
+
+```{r se-info}
+n <- length(oz)
+se_info <- 1 / sqrt(-n * dg(ahat))
+se_info
+```
+
+## Bootstrap SE
+
+Resample the days, refit $\hat\alpha$, take the standard deviation.
+
+```{r se-boot}
+boot_a <- replicate(1000, {
+  y <- sample(oz, replace = TRUE)
+  c_y <- log(mean(y)) - mean(log(y))
+  uniroot(\(a) log(a) - digamma(a) - c_y, c(0.1, 20))$root
+})
+se_boot <- sd(boot_a)
+se_boot
+```
+
+## Sandwich SE
+
+$s_i$: the gradient of observation $i$'s log-likelihood in $(\alpha, \beta)$.
+
+$H$: the Hessian of $\ell$.
+$$\widehat{\Var{\hat\alpha, \hat\beta}} = H^{-1} \Big(\sum_i s_i s_i^T\Big) H^{-1}.$$
+
+```{r se-sand}
+bhat <- ahat / mean(oz)
+S <- cbind(log(bhat) - digamma(ahat) + log(oz), ahat / bhat - oz)
+H <- -n * matrix(c(trigamma(ahat), -1 / bhat,
+                  -1 / bhat, ahat / bhat^2), 2)
+V <- solve(H) %*% crossprod(S) %*% solve(H)
+c(information = se_info, bootstrap = se_boot, sandwich = sqrt(V[1, 1]))
+```
+
+##  {.standout}
+
+Complete A.4
+

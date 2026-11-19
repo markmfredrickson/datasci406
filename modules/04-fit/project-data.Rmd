@@ -1,0 +1,159 @@
+---
+title: "Module 4 Project: The Data"
+links-as-notes: true
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+```
+
+The Module 4 project uses RNA sequencing of
+1,306,127 individual cells from the brains of two mouse embryos provided by 10x Genomics.
+
+# Source
+
+10x Genomics, a company that makes single-cell sequencing instruments,
+released the data in 2017. The cells come from the cortex, hippocampus and subventricular zone of
+two mice (strain C57BL/6) at embryonic day 18, a few days before birth.
+
+- The dataset page, with a description of the experiment and all the files:
+  [1.3 Million Brain Cells from E18 Mice](https://www.10xgenomics.com/datasets/1-3-million-brain-cells-from-e-18-mice-2-standard-1-3-0)
+- The full count matrix, 4.2 GB in HDF5 format:
+  [1M_neurons_filtered_gene_bc_matrices_h5.h5](https://cf.10xgenomics.com/samples/cell-exp/1.3.0/1M_neurons/1M_neurons_filtered_gene_bc_matrices_h5.h5)
+- 10x's random subsample of 20,000 cells:
+  [1M_neurons_neuron20k.h5](https://cf.10xgenomics.com/samples/cell-exp/1.3.0/1M_neurons/1M_neurons_neuron20k.h5)
+- 10x's automated analysis, including the cluster labels:
+  [1M_neurons_analysis.tar.gz](https://cf.10xgenomics.com/samples/cell-exp/1.3.0/1M_neurons/1M_neurons_analysis.tar.gz)
+- A copy at the Human Cell Atlas data portal, which hosts some mouse
+  datasets alongside its human ones:
+  [1M Neurons](https://explore.data.humancellatlas.org/projects/74b6d569-3b11-42ef-b6b1-a0454522b4a0)
+- Background on the method:
+  [single-cell transcriptomics](https://en.wikipedia.org/wiki/Single-cell_transcriptomics) on Wikipedia
+
+The data are licensed
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/): you may use and
+share them, with credit to 10x Genomics.
+
+# Measurements
+
+A cell makes RNA copies of the genes it is using. The 10x instrument wraps
+each cell in its own tiny **droplet** of oil, together with a bead carrying a
+unique barcode. Every RNA molecule from that cell is tagged with the barcode,
+so after sequencing each molecule can be traced to its cell, and the
+molecules from each of 27,998 mouse genes can be counted in each cell. A cell's counts say which genes it is using, and so what kind of
+cell it is: a neuron uses different genes from a dividing stem cell.
+
+- Most counts are zero. A typical cell has molecules from about 1,900 genes.
+- Counting misses most molecules, so a zero does not mean the gene is unused.
+  A missed gene is called a **dropout**.
+- The total number of molecules counted in a cell is its **library size**. It
+  depends on the cell's size and on how well its RNA was captured, so counts
+  are usually compared relative to it.
+- The cells were sequenced in 133 separate runs (**batches**). Cells in the
+  same run were processed together, so they can differ from cells in other
+  runs for reasons that have nothing to do with biology.
+- A droplet that captured two cells (a **doublet**) looks like one cell with
+  about twice the RNA and a mix of both cells' genes.
+
+# Data Cleaning
+
+The full data are 1,306,127 cells by 27,998 genes, too large to work with on a
+laptop. We made two smaller files from them.
+
+- **`brain_cells` keeps every cell but only a few genes.** For each cell we
+  computed the library size, the number of genes detected and the
+  mitochondrial count from all 27,998 genes, then kept the counts of 30 marker
+  genes and dropped the rest.
+- **`brain_genes` keeps many genes but fewer cells.** It uses the 20,000
+  cells 10x chose at random, and the 2,000 genes that vary most
+  across them.
+- **We added labels.** Each cell's barcode ends in the number of its run,
+  which became `batch`. 10x's cluster labels were matched to cells by barcode.
+- **We renamed some genes.** R does not allow `-` in a column name, so
+  `Hba-a1` is `Hba.a1`. Names that start with a digit get an `X` in front,
+  and a few duplicated names end in `.1`.
+
+# Files
+
+In the course `data/` folder you will find compressed CSV files that can be read using `read.csv` (no need to decompress manually).
+
+## `brain_cells.csv.gz`
+
+
+```{r cells}
+cells <- read.csv("../../data/brain_cells.csv.gz")
+dim(cells)
+```
+Rows are cells.
+
+| Column | Meaning |
+|---|---|
+| `cell` | 1 to 1,306,127, the cell's position in the 10x file |
+| `batch` | which of the 133 sequencing runs the cell came from |
+| `library` | total molecules counted in the cell, over all genes |
+| `detected` | number of genes with at least one molecule counted |
+| `mito` | molecules from the 13 mitochondrial genes |
+| `graph` | 10x's graph-based cluster, 1 to 60, numbered largest first |
+| `kmeans10` | 10x's k-means cluster, with 10 clusters |
+| 30 gene columns | molecules counted for each of 30 marker genes |
+
+The 30 genes are known markers of kinds of cells in the developing brain:
+
+[Mouse Genome Informatics](https://www.informatics.jax.org/) describes
+what each gene does.
+
+```{r marker-table, echo=FALSE, results='asis'}
+marks <- list(
+  c("Stmn2", "Snap25", "Tubb3"), "neurons",
+  c("Neurod6", "Slc17a6", "Tbr1", "Satb2", "Bcl11b"), "excitatory neurons",
+  c("Gad1", "Gad2", "Dlx2", "Lhx6"), "inhibitory neurons",
+  "Reln", "Cajal-Retzius cells, early neurons on the brain's surface",
+  "Eomes", "intermediate progenitors, which divide to make neurons",
+  c("Pax6", "Sox2", "Hes5", "Fabp7", "Nes"), "radial glia, the brain's stem cells",
+  c("Mki67", "Top2a"), "any dividing cell",
+  c("Olig2", "Pdgfra"), "oligodendrocyte precursors",
+  "Aqp4", "astrocytes",
+  "C1qa", "microglia, the brain's immune cells",
+  "Cldn5", "cells lining blood vessels",
+  c("Hba.a1", "Hbb.bs"), "hemoglobin: red blood cells, a contaminant",
+  "Xist", "X inactivation; made only by female cells",
+  "Malat1", "a highly expressed RNA found in nearly every cell")
+link <- function(g) {
+  if (!knitr::is_html_output()) return(sprintf("`%s`", g))
+  sprintf("[`%s`](https://www.informatics.jax.org/quicksearch/summary?queryType=exactPhrase&query=%s)",
+          g, sub(".", "-", g, fixed = TRUE))
+}
+genes_col <- sapply(marks[c(TRUE, FALSE)], \(g) paste(link(g), collapse = ", "))
+cat("| Genes | Usually marks |\n|---|---|\n")
+cat(sprintf("| %s | %s |\n", genes_col, unlist(marks[c(FALSE, TRUE)])), sep = "")
+```
+
+## `brain_genes.csv.gz`
+
+```{r genes}
+genes <- read.csv("../../data/brain_genes.csv.gz")
+dim(genes)
+```
+
+These are the 20,000 cells of 10x's random subsample. The first five columns
+are `cell`, `batch`, `library`, `graph` and `kmeans10`, as in `brain_cells`; `cell`
+matches the same column of `brain_cells`. The other 2,000 columns count
+molecules for 2,000 **highly variable** genes. These were chosen among the
+genes counted in at least 1% of the 20,000 cells, as the 2,000 whose value of
+$\log(1 + 10000 \times \text{count} / \text{library})$ varies most across
+cells. Seventeen of the 30 marker genes are among them.
+
+# Notes
+
+- **The clusters are automated labels.** 10x found `graph` and `kmeans10` by
+  clustering the cells on their first 20 principal components, with no
+  biologist involved. They may or may not correspond to kinds of cells.
+- **The sample appears to be female.** `Xist` is counted in 96% of cells, and
+  `Ddx3y`, a gene on the Y chromosome, is never counted. A cell with no
+  `Xist` is a dropout, not a male cell.
+- **The cells are not independent.** Cells from the same batch, and from the
+  same mouse, share conditions.

@@ -12,6 +12,17 @@
 \usetheme{metropolis}
 \usecolortheme[snowy]{owl}
 
+% A metropolis standout frame opens a group that closes only when the next
+% frame starts. A \section in between (a `#` header after a `{.standout}`
+% slide) leaves the standout's background on the section page. Close the
+% group before the section instead.
+\makeatletter
+\let\metropolis@origsection\section
+\renewcommand{\section}{%
+  \ifbool{metropolis@standout}{\endgroup\boolfalse{metropolis@standout}}{}%
+  \metropolis@origsection}
+\makeatother
+
 % Math shorthands used throughout the decks.
 \newcommand{\iid}{\overset{\text{iid}}{\sim}}
 \newcommand{\E}[1]{\text{E}\left(#1\right)}
