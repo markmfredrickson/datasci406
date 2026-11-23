@@ -35,7 +35,7 @@ The estimates came from formulas or existing functions.
 
 In this module we **fit** models: find the parameter that maximizes a likelihood or minimizes a loss.
 
-Statisticians optimize because many estimators are defined as the minimum of a loss. Data Scienctists optimize to minimze prediction error.
+Statisticians optimize because many estimators are defined as the minimum of a loss. Data Scientists optimize to minimize prediction error.
 
 For each method we ask what it estimates and how uncertain the estimate is.
 
@@ -125,15 +125,30 @@ An **iterative method** builds a sequence $\alpha_0, \alpha_1, \alpha_2, \ldots$
 
 1. Start from a guess $\alpha_0$.
 2. Use $\alpha_k$ and $g$ to compute a better $\alpha_{k+1}$.
-3. Stop when $\alpha_{k+1}$ is close enough to $\alpha_k$: $|\alpha_{k+1} - \alpha_k| < \epsilon$
-CLAUDE: why not coverge to $|g(\alpha_k)| < \epsilon$, with in eps of the target?
+3. Stop when we have **converged**.
+
+## Converged
+
+We could use a few different rules for deciding when to stop:
+
+* $|g(\alpha_{k+1}) - g(\alpha_{k}) | \le \epsilon$: no guarantee near zero or $\hat \alpha$, depends on scale of $g$
+* $|g(\alpha_k) - 0| \le \epsilon$: $g$ close to zero but $\alpha_k$ possibly far from $\hat \alpha$, scale issues again
+* $|\alpha_{k+1} - \alpha_k| \le \epsilon$: units of $\alpha$, and implies $g$ is close to zero near the root
+
+Near the root, where $g(\hat\alpha) = 0$, a Taylor expansion shows
+$$g(\alpha_k) \approx g'(\hat\alpha)(\alpha_k - \hat\alpha) \quad \Rightarrow \quad |\alpha_k - \hat\alpha| \approx \frac{|g(\alpha_k)|}{|g'(\hat\alpha)|}.$$
+An $\alpha_k$ within $\epsilon$ of $\hat\alpha$ has $g(\alpha_k)$ within $|g'(\hat\alpha)|\epsilon$ of zero.
 
 ## Counting Steps
 
 How fast do we find the solution? We will measure speed in **correct digits gained per step**.
 
-CLAUDE: describe how we know many correcte digitis gained per step, the previosu stuff about efficiency was obvious. Good place
-- The SE of $\hat\alpha$ is about 0.2, so a few digits are enough for inference. A method that gets them in 4 steps beats one that takes 30.
+- The error is $e_k = |\alpha_k - \hat\alpha|$. If $e_k = 10^{-3}$, then $\alpha_k$ has 3 correct digits, so in general it has $-\log_{10} e_k$.
+- A step gains $\log_{10}(e_k / e_{k+1})$ digits.
+- **Linear:** $e_{k+1} \approx c\, e_k$ with $c < 1$. Every step gains $-\log_{10} c$ digits.
+- **Quadratic:** $e_{k+1} \approx C e_k^2$. Every step doubles the digits.
+- **Superlinear:** $e_{k+1} / e_k \to 0$. Each step gains more digits than the last.
+- **Sublinear:** $e_k \approx C / \sqrt{k}$, as in Monte Carlo. One more digit costs 100 times the steps.
 
 # Bracketed Methods
 
@@ -170,7 +185,8 @@ After $k$ steps the bracket has width $(b - a) / 2^k$, so a tolerance $\epsilon$
 $$k = \left\lceil \log_2 \frac{b - a}{\epsilon} \right\rceil$$
 steps: `r ceiling(log2(19 / 1e-8))` for $[1, 20]$ and $\epsilon = 10^{-8}$.
 
-- Each step gains one binary digit, so a decimal digit costs about 3.3 steps. CLAUDE: is this logarithmic?
+- Each step gains one binary digit, so a decimal digit costs about 3.3 steps.
+- Steps are logarithmic in $1/\epsilon$. Digits are linear in steps: **linear convergence**.
 - The number of steps does not depend on $g$.
 
 ## Bracket Failures
@@ -202,6 +218,8 @@ Supposing the approximation is good then, $g(x) = 0 \Rightarrow g(x_0) + g'(x_0)
 $$x = x_0 - \frac{g(x_0)}{g'(x_0)}.$$
 
 Make $x_1 = x$ our next guess and continue. **Newton's method** (Newton-Raphson) repeats this step until it stops moving.
+
+The step size is $|g(x_0)| / |g'(x_0)|$, so a small step means $g(x_0)$ is near zero and $x_0$ is near the root.
 
 ```{r dg, include=FALSE}
 dg <- function(a) 1 / a - trigamma(a)
@@ -246,7 +264,7 @@ dg <- function(a) 1 / a - trigamma(a)
 
 ## Newton Iterates
 
-We need start from $\alpha_0$ (**initialize**), so use the method of moments estimate (which does have a closed form): $\alpha_0 = \bar x^2 / s^2$.
+We need to start from $\alpha_0$ (**initialize**), so use the method of moments estimate (which does have a closed form): $\alpha_0 = \bar x^2 / s^2$.
 
 ```{r newton-oz}
 a0 <- mean(oz)^2 / var(oz)
@@ -288,6 +306,7 @@ Divide by $g'(x)$ and rearrange. The next iterate $x_{\text{new}} = x - g(x)/g'(
 $$x_{\text{new}} - r \approx \frac{g''(x)}{2 g'(x)} (x - r)^2.$$
 
 - Each error is about a constant times the square of the last. This is **quadratic convergence**.
+- Squaring $10^{-d}$ gives $10^{-2d}$: the correct digits double each step.
 - Bisection took 31 steps. Newton took 4.
 
 ## Newton for Likelihoods
@@ -331,7 +350,7 @@ that <- path_hub[length(path_hub)]
 path_hub
 ```
 
-$g$ is piecewise linear, so the Taylor's approximation is exact once the set of points inside the band stops changing (can stop with correct answer).
+$g$ is piecewise linear, so the Taylor approximation is exact once the set of points inside the band stops changing (can stop with correct answer).
 
 # Standard Errors
 
@@ -409,7 +428,7 @@ The two disagree by 10%. The information assumes the gamma -- maybe we should qu
 
 ## Sandwich SE
 
-An M-estimator $\hat theta$ is always estimating expected loss. For IID samples and a loss function $L$ we cans how that:
+An M-estimator $\hat\theta$ is always estimating expected loss. For IID samples and a loss function $L$ we can show that:
 
 $$\text{SE}(\hat\theta) \approx \frac{1}{\sqrt{n}} \frac{\sqrt{B}}{A}, \qquad A = \E{L''(X, \theta)}, \quad B = \E{L'(X, \theta)^2}.$$
 
