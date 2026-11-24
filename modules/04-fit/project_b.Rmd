@@ -1,0 +1,315 @@
+---
+title: "Module 4 Project, Part B: Newton's Method in k Dimensions and IWLS"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(20261124)
+library(tidyverse)
+```
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 4 - Fit, each in its own file. This is Part B. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+Fill in the code chunk after each direction, then delete its `eval = FALSE` so it runs. The chunks start with `eval = FALSE` so the file knits before you begin.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Column definitions are in [The Data](project-data.html) (`project-data.Rmd`).
+Reading `brain_cells` takes several seconds.
+
+```{r brain}
+cells <- read.csv("../../data/brain_cells.csv.gz")
+b1 <- cells[cells$batch == 1, ]
+```
+
+B.1 to B.3 use the cells of batch 1 in 10x's k-means cluster 1, the largest
+cluster. `Neurod6` is a marker of excitatory neurons, and most cells in this
+cluster have it.
+
+```{r neurons}
+neurons <- b1[b1$kmeans10 == 1, ]
+y <- neurons$Neurod6               # molecules of Neurod6 counted in each cell
+x <- log(neurons$library)          # log library size
+c(cells = length(y), mean = mean(y))
+```
+
+# Part B
+
+## Recap
+
+A.4(c) computed the sandwich standard error of $\widehat\alpha$, the gamma
+shape for the library sizes of batch 1, with $2 \times 2$ matrices. One
+parameter is enough.
+
+Let $r_i$ be cell $i$'s library size divided by the mean library size. Then
+$\widehat\alpha$ solves $g(\alpha) = 0$ with
+$$g(\alpha) = \log \alpha - \text{digamma}(\alpha) + \frac{1}{n} \sum_{i=1}^n \log r_i.$$
+
+```{r recap-fit}
+r <- b1$library / mean(b1$library)
+g <- function(a) log(a) - digamma(a) + mean(log(r))
+dg <- function(a) 1 / a - trigamma(a)
+ahat <- uniroot(g, c(1, 20), tol = 1e-10)$root
+ahat
+```
+
+Each cell contributes one term to that equation:
+$n g(\alpha) = \sum_i e_i(\alpha)$, where
+$$e_i(\alpha) = \log \alpha - \text{digamma}(\alpha) + \log r_i - (r_i - 1).$$
+The term $r_i - 1$ sums to 0. It is there because the mean library size also
+changes from sample to sample.
+
+- $A = -n g'(\widehat\alpha)$ is the curvature of the log-likelihood, the $J$
+  of A.4(a).
+- $B = \sum_i e_i(\widehat\alpha)^2$ measures how much the $e_i$ vary from
+  cell to cell.
+
+The information SE is $1 / \sqrt{A}$ and the sandwich SE is $\sqrt{B} / A$.
+If the library sizes are gamma, $B$ is about $A$ and the two agree.
+
+(a) Compute $A$ and the information SE. `dg(ahat)` is $g'(\widehat\alpha)$
+and `length(r)` is $n$.
+
+```{r recap-a, eval = FALSE}
+A0 <-
+1 / sqrt(A0)
+```
+
+(b) Compute $B$ and the sandwich SE.
+
+```{r recap-b, eval = FALSE}
+e <- log(ahat) - digamma(ahat) + log(r) - (r - 1)
+B0 <-
+c(information = 1 / sqrt(A0), sandwich = sqrt(B0) / A0)
+```
+
+(c) Compute $B / A$. Which standard error assumes the library sizes are
+gamma, and is it too large or too small?
+
+```{r recap-c, eval = FALSE}
+
+```
+
+## B.1
+
+Counts are usually compared relative to library size, which assumes a gene's
+expected count is proportional to the library. Model the count of `Neurod6`
+with a Poisson regression on the log library size
+$x_i = \log(\text{library}_i)$:
+$$y_i \sim \text{Poisson}(\mu_i), \qquad \log \mu_i = \eta_i = \beta_0 + \beta_1 x_i.$$
+Then $\mu_i = e^{\beta_0} \, \text{library}_i^{\beta_1}$, so the count
+is proportional to the library when $\beta_1 = 1$. Let $X$ be the matrix with
+rows $(1, x_i)$, so $\eta = X \beta$. The gradient and Hessian of the
+log-likelihood are
+$$g(\beta) = X^T (y - \mu), \qquad H(\beta) = -X^T W X,$$
+where $W$ is diagonal with entries $w_i = \mu_i$.
+
+(a) Solve the model for $\mu_i$ in terms of $\eta_i$, and complete `mu_fn`
+with that expression. Then write the bodies of `grad` and `hess`, which return
+$g(\beta)$ and $H(\beta)$ and can call `mu_fn(b)`. In R, `t(X)` is $X^T$
+and `%*%` multiplies matrices. `w * X` multiplies row $i$ of $X$ by $w_i$, so
+it is $W X$.
+
+```{r b1-a, eval = FALSE}
+X <- cbind(1, x)
+mu_fn <- function(b) {
+  eta <- drop(X %*% b)
+                                 # mu from eta
+}
+grad <- function(b) {
+
+}
+hess <- function(b) {
+
+}
+grad(c(0, 0))
+hess(c(0, 0))
+```
+
+(b) Complete `newton_k`, which returns every iterate as a row. The Newton
+step $d$ solves $H d = -g$, and `solve(A, v)` solves $A d = v$. Start from
+$(\log \bar y, 0)$, which gives every cell the mean count.
+
+```{r b1-b, eval = FALSE}
+newton_k <- function(grad, hess, b0, tol = 1e-10, maxit = 50) {
+  path <- matrix(b0, nrow = 1)
+  for (i in 1:maxit) {
+    b <- path[i, ]
+    step <-                      # solve H d = -g at b
+    path <- rbind(path, b + step)
+    if (max(abs(step)) < tol) break
+  }
+  path
+}
+path <- newton_k(grad, hess, c(log(mean(y)), 0))
+path
+bhat <- path[nrow(path), ]
+```
+
+(c) Check $\widehat\beta$ with `glm`. Then compute the fitted mean count of
+`Neurod6` in a cell with 2,000 molecules and in a cell with 8,000.
+
+```{r b1-c, eval = FALSE}
+fit_pois <- glm(y ~ x, family = poisson)
+coef(fit_pois)
+x_new <- log(c(2000, 8000))
+
+```
+
+(d) By what factor does the fitted mean count grow when the library doubles?
+Doubling the library adds $\log 2$ to $x$. Compare the factor with 2.
+
+```{r b1-d, eval = FALSE}
+
+```
+
+(e) How many steps did Newton take? Run it again from $(0, 0)$. How many
+steps does it take now, and where does the first step put $\beta_1$?
+
+```{r b1-e, eval = FALSE}
+
+```
+
+## B.2
+
+Each Newton step is a weighted least squares fit. With
+$\eta_i = \beta_0 + \beta_1 x_i$ at the current $\beta$, the next $\beta$ is
+the weighted least squares fit of the **working response**
+$$z_i = \eta_i + \frac{y_i - \mu_i}{w_i}$$
+on $x$, with weights $w_i = \mu_i$.
+
+IWLS needs only $\eta$ to begin, not $\beta$, so it can start from the data.
+`glm` starts from $\eta_i = \log(y_i + 0.1)$, which is close to the fit
+already. The $0.1$ keeps the log finite for a count of 0.
+
+(a) Fill in `mu`, `w` and `z`. Eight passes should reproduce $\widehat\beta$
+from B.1.
+
+```{r b2-a, eval = FALSE}
+eta <- log(y + 0.1)
+for (i in 1:8) {
+  mu <-
+  w <-
+  z <-
+  b <- coef(lm(z ~ x, weights = w))
+  eta <- b[1] + b[2] * x
+}
+rbind(iwls = b, newton = bhat)
+```
+
+(b) IWLS is Fisher scoring: Newton's method with $H$ replaced by its
+expected value under the model. Why is it the same method as Newton here?
+Look at $H(\beta)$ in B.1.
+
+## B.3
+
+Is $\widehat\beta_1$ from B.1 far enough below 1 to say the count is not
+proportional to the library? That depends on its standard error.
+
+(a) **The information.** If the counts are Poisson, the variance matrix of
+$\widehat\beta$ is about $A^{-1}$, where $A = X^T W X$ with $w_i = \widehat\mu_i$.
+`solve(A)` is $A^{-1}$. The result should match the standard errors from
+`summary(fit_pois)`.
+
+```{r b3-a, eval = FALSE}
+mu <- mu_fn(bhat)
+A <- t(X) %*% (mu * X)
+se_info <-
+se_info
+summary(fit_pois)$coefficients[, "Std. Error"]
+```
+
+(b) **The sandwich.** The sandwich keeps $A$ and measures the variability of
+the scores from the data:
+$$V = A^{-1} B A^{-1}, \qquad B = \sum_i (y_i - \widehat\mu_i)^2 x_i x_i^T.$$
+`B` is given. Compute $V$ and the standard errors.
+
+```{r b3-b, eval = FALSE}
+B <- t(X) %*% ((y - mu)^2 * X)
+V <-
+se_sand <- sqrt(diag(V))
+rbind(information = se_info, sandwich = se_sand)
+```
+
+(c) Compute the interval $\widehat\beta_1 \pm 1.96\,\text{SE}$ with each
+standard error. Is 1 inside either interval?
+
+```{r b3-c, eval = FALSE}
+
+```
+
+(d) A Poisson count has variance equal to its mean, so
+$(y_i - \mu_i)^2 / \mu_i$ should average about 1. Compute the average.
+Which standard error assumes it is 1, and is that SE too large or too small
+here?
+
+```{r b3-d, eval = FALSE}
+mean((y - mu)^2 / mu)
+```
+
+(e) Fit a logistic regression for whether `Neurod6` was detected at all, and
+compute the same two standard errors. They nearly agree. Why can a 0/1
+outcome not have more variance than the model says, when a count can?
+
+```{r b3-e, eval = FALSE}
+det <- as.numeric(y > 0)
+p <- fitted(glm(det ~ x, family = binomial))
+A1 <- t(X) %*% (p * (1 - p) * X)
+B1 <- t(X) %*% ((det - p)^2 * X)
+rbind(information = sqrt(diag(solve(A1))),
+      sandwich = sqrt(diag(solve(A1) %*% B1 %*% solve(A1))))
+```
+
+## B.4
+
+`Tbr1` is a marker of cortical neurons. Model the count of `Tbr1` with a
+Poisson regression on membership in 10x's k-means cluster 7, using every cell
+in batch 1.
+
+```{r k7}
+k7 <- as.numeric(b1$kmeans10 == 7)   # 1 if the cell is in cluster 7
+tbr <- b1$Tbr1                       # molecules of Tbr1 counted in each cell
+```
+
+(a) Compute the number of cells and the total `Tbr1` count in each group of
+`k7`. Which total is 0?
+
+```{r b4-a, eval = FALSE}
+
+```
+
+(b) `grad` and `hess` from B.1 use whatever `X` and `y` hold when they are
+called, so pointing `X` and `y` at the new data is enough. Run 15 Newton
+steps from $(0, 0)$ with `maxit = 15`. `ll` is the log-likelihood. What
+happens to each coefficient from one step to the next, and to the
+log-likelihood?
+
+```{r b4-b, eval = FALSE}
+X <- cbind(1, k7)
+y <- tbr
+ll <- function(b) sum(dpois(y, exp(X %*% b), log = TRUE))
+path_s <-
+cbind(path_s, loglik = apply(path_s, 1, ll))
+```
+
+(c) Fit the same model with `glm`. Print the coefficients with their
+standard errors, and `converged`.
+
+```{r b4-c, eval = FALSE}
+fit_s <- glm(tbr ~ k7, family = poisson)
+
+```
+
+(d) What is the mean `Tbr1` count in cluster 7? What fitted mean does that
+call for, and which value of $\beta_0 + \beta_1$ gives it? Why does `glm`
+report that it converged?
+
