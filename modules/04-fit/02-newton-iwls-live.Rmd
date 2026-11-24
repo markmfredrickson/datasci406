@@ -1,0 +1,351 @@
+---
+title: "Newton's Method in $k$ Dimensions: Through Part B"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 4: Fit, Session 2"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(20261124)
+library(tidyverse)
+```
+
+## Today
+
+| Concept | Project |
+|---|---|
+| the sandwich standard error with one parameter | Recap |
+| Newton's method with a gradient and a Hessian | B.1, Poisson regression |
+| Newton steps as weighted least squares | B.2 |
+| standard errors: information and sandwich | B.3 |
+| separation | B.4 |
+
+More depth and additional concepts covered in video.
+
+## One-Parameter Sandwich
+
+$\hat\theta$ solves $\sum_i e_i(\theta) = 0$, where $e_i$ is observation $i$'s term in the equation.
+
+- $A = -\sum_i e_i'(\hat\theta)$ is the curvature of the log-likelihood.
+- $B = \sum_i e_i(\hat\theta)^2$ is the spread of the $e_i$ in the data.
+
+$$\text{information SE} = \frac{1}{\sqrt{A}}, \qquad \text{sandwich SE} = \frac{\sqrt{B}}{A}.$$
+
+If the model is true, $B \approx A$ and the two agree.
+
+## Gamma Sandwich
+
+Gamma shape: $e_i(\alpha) = \log \alpha - \text{digamma}(\alpha) + \log r_i - (r_i - 1)$, with $r_i = x_i / \bar x$.
+
+```{r recap-setup, include=FALSE}
+oz <- as.numeric(na.omit(airquality$Ozone))
+ahat <- uniroot(\(a) log(a) - digamma(a) - log(mean(oz)) + mean(log(oz)),
+                c(0.1, 20), tol = 1e-12)$root
+```
+
+```{r recap}
+r <- oz / mean(oz)
+e <- log(ahat) - digamma(ahat) + log(r) - (r - 1)
+A <- -length(oz) * (1 / ahat - trigamma(ahat))
+B <- sum(e^2)
+c(information = 1 / sqrt(A), sandwich = sqrt(B) / A)
+```
+
+- The term $r_i - 1$ is there because $\bar x$ also changes from sample to sample.
+- The $2 \times 2$ matrices give the same sandwich SE.
+
+##  {.standout}
+
+Complete the Recap
+
+# Newton in $k$ Dimensions
+
+## Loss Surface
+
+The gamma model for ozone has two parameters, so its loss $-\ell(\alpha, \beta)$ is a surface. The MLE is the lowest point.
+
+```{r gamma-surface, echo=FALSE, fig.height=2.1, fig.width=3, out.width="49%", fig.show="hold"}
+oz <- as.numeric(na.omit(airquality$Ozone))
+loss <- function(a, b) -sum(dgamma(oz, shape = a, rate = b, log = TRUE))
+# the MLE, by the one-parameter equation from the root finding lecture
+a_mle <- uniroot(\(a) log(a / mean(oz)) + mean(log(oz)) - digamma(a),
+                 c(0.5, 5), tol = 1e-12)$root
+b_mle <- a_mle / mean(oz)
+
+a_seq <- seq(1, 2.8, length.out = 30)
+b_seq <- seq(0.02, 0.07, length.out = 30)
+par(mar = c(0, 1, 0, 0))
+view <- persp(a_seq, b_seq, outer(a_seq, b_seq, Vectorize(loss)),
+              theta = -30, phi = 30, col = "gray92", border = "gray55",
+              xlab = "alpha", ylab = "beta", zlab = "loss", cex.lab = 0.7)
+points(trans3d(a_mle, b_mle, loss(a_mle, b_mle), view), pch = 19, col = "red")
+
+surface <- expand.grid(a = seq(0.6, 4.2, length.out = 90),
+                       b = seq(0.012, 0.105, length.out = 90))
+surface$loss <- map2_dbl(surface$a, surface$b, loss)
+contours <- ggplot(surface, aes(a, b)) +
+  geom_contour(aes(z = loss), color = "gray60",
+               breaks = loss(a_mle, b_mle) + c(0.5, 2, 5, 10, 20, 40, 80, 160)) +
+  labs(x = "alpha", y = "beta")
+contours + annotate("point", x = a_mle, y = b_mle, color = "red", size = 2) +
+  coord_cartesian(xlim = range(a_seq), ylim = range(b_seq), expand = FALSE)
+```
+
+## Coordinate Descent
+
+One option needs only one-parameter Newton. Solve for $\alpha$ with $\beta$ held fixed, then for $\beta$ with $\alpha$ held fixed, and repeat.
+
+```{r coord-descent, echo=FALSE, fig.height=1.7, fig.width=6}
+# Newton's method for one parameter
+newton_1 <- function(g, dg, x, tol = 1e-12) {
+  for (i in 1:100) {
+    step <- -g(x) / dg(x)
+    x <- x + step
+    if (abs(step) < tol) break
+  }
+  x
+}
+# one pass: Newton for alpha with beta fixed, then for beta with alpha fixed
+coord_descent <- function(t0, tol = 1e-10, maxit = 500) {
+  n <- length(oz)
+  path <- matrix(t0, nrow = 1)
+  for (i in 1:maxit) {
+    b <- path[nrow(path), 2]
+    a <- newton_1(\(a) n * log(b) - n * digamma(a) + sum(log(oz)),
+                  \(a) -n * trigamma(a), path[nrow(path), 1])
+    path <- rbind(path, c(a, b))
+    b <- newton_1(\(b) n * a / b - sum(oz), \(b) -n * a / b^2, b)
+    path <- rbind(path, c(a, b))
+    if (max(abs(path[nrow(path), ] - path[nrow(path) - 2, ])) < tol) break
+  }
+  list(path = path, passes = i)
+}
+cd <- coord_descent(c(4, 0.095))
+contours +
+  annotate("path", x = cd$path[, 1], y = cd$path[, 2], color = "red") +
+  annotate("point", x = 4, y = 0.095, color = "red", size = 1.5) +
+  annotate("point", x = a_mle, y = b_mle, size = 1.5)
+```
+
+```{r coord-descent-rate, include=FALSE}
+cd_err <- abs(cd$path[seq(1, nrow(cd$path), 2), 1] - a_mle)
+cd_rate <- cd_err[21] / cd_err[20]
+```
+
+- Moving $\beta$ changes the best $\alpha$, so the path zigzags down the valley.
+- A pass multiplies the error by `r round(cd_rate, 2)`, about `r round(-1 / log10(cd_rate))` passes a digit: **linear convergence**.
+
+## Gradient and Hessian
+
+With $k$ parameters, the log-likelihood $\ell(\bm\theta)$ has
+
+- a **gradient** $\bm g(\bm\theta)$, the vector of first derivatives, and
+- a **Hessian** $\bm H(\bm\theta)$, the $k \times k$ matrix of second derivatives.
+
+The MLE solves $\bm g(\bm\theta) = \bm 0$. Newton replaces $g / g'$ with a linear system:
+$$\theta \leftarrow \theta - \frac{g(\theta)}{g'(\theta)} \qquad \text{becomes} \qquad \bm\theta \leftarrow \bm\theta + \bm d, \quad \bm H(\bm\theta)\, \bm d = -\bm g(\bm\theta).$$
+
+`solve(H, -g)` returns $\bm d$.
+
+## Newton in R
+
+```{r newton-k}
+newton_k <- function(grad, hess, b0, tol = 1e-10, maxit = 50) {
+  path <- matrix(b0, nrow = 1)
+  for (i in 1:maxit) {
+    b <- path[i, ]
+    step <- solve(hess(b), -grad(b))
+    path <- rbind(path, b + step)
+    if (max(abs(step)) < tol) break
+  }
+  path
+}
+```
+
+Each row of `path` is an iterate. The loop stops when no parameter moves by more than `tol`.
+
+## Logistic Regression
+
+O-ring distress on the 23 shuttle flights before the Challenger, from module 2. $y_i = 1$ if flight $i$ had distress, and $x_i$ is its launch temperature minus 70:
+$$P(y_i = 1) = p_i, \qquad \log \frac{p_i}{1 - p_i} = \beta_0 + \beta_1 x_i.$$
+
+With $\bm X$ the matrix with rows $(1, x_i)$,
+$$\bm g(\bm\beta) = \bm X^T (\bm y - \bm p), \qquad \bm H(\bm\beta) = -\bm X^T \bm W \bm X, \qquad \bm W = \text{diag}(p_i (1 - p_i)).$$
+
+- $\bm X^T (\bm y - \bm p) = \bm 0$ has no closed form, because $\bm p$ is not linear in $\bm\beta$.
+- $\ell$ is concave, so it has at most one maximum.
+
+## Logistic Newton in R
+
+```{r oring, include=FALSE}
+oring <- tibble(
+  temp = c(66, 70, 69, 68, 67, 72, 73, 70, 57, 63, 70, 78,
+           67, 53, 67, 75, 70, 81, 76, 79, 75, 76, 58),
+  distress = c(0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0,
+               0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 1))
+y <- as.numeric(oring$distress > 0)
+x <- oring$temp - 70
+```
+
+```{r logit-newton}
+X <- cbind(1, x)
+grad <- function(b) drop(t(X) %*% (y - plogis(X %*% b)))
+hess <- function(b) {
+  p <- drop(plogis(X %*% b))
+  -t(X) %*% (p * (1 - p) * X)
+}
+path <- newton_k(grad, hess, c(0, 0))
+bhat <- path[nrow(path), ]
+rbind(newton = bhat, glm = coef(glm(y ~ x, family = binomial)))
+```
+
+## Newton Path
+
+Contours of $\ell(\beta_0, \beta_1)$ and the `r nrow(path) - 1` Newton steps from $(0, 0)$.
+
+```{r logit-contour, echo=FALSE, fig.height=2.4, fig.width=6}
+ll <- function(b0, b1) sum(dbinom(y, 1, plogis(b0 + b1 * x), log = TRUE))
+grid <- expand.grid(b0 = seq(-2.6, 0.4, length.out = 80),
+                    b1 = seq(-0.5, 0.05, length.out = 80))
+grid$ll <- map2_dbl(grid$b0, grid$b1, ll)
+ggplot(grid, aes(b0, b1)) +
+  geom_contour(aes(z = ll), color = "gray60",
+               breaks = max(grid$ll) - c(0.1, 0.5, 1, 2, 4, 8, 16)) +
+  annotate("path", x = path[, 1], y = path[, 2], color = "red") +
+  annotate("point", x = path[, 1], y = path[, 2], color = "red", size = 1.5) +
+  labs(x = "beta0", y = "beta1")
+```
+
+##  {.standout}
+
+Complete B.1
+
+# IWLS
+
+## Newton Step as Least Squares
+
+Weighted least squares of $\bm z$ on $\bm X$ with weights $\bm W$ has the closed form $(\bm X^T \bm W \bm X)^{-1} \bm X^T \bm W \bm z$.
+
+The logistic Newton step can be written the same way:
+$$\bm\beta_{\text{new}} = \bm\beta + (\bm X^T \bm W \bm X)^{-1} \bm X^T (\bm y - \bm p) = (\bm X^T \bm W \bm X)^{-1} \bm X^T \bm W \bm z,$$
+with the **working response**
+$$z_i = \eta_i + \frac{y_i - p_i}{w_i}, \qquad \eta_i = \beta_0 + \beta_1 x_i, \qquad w_i = p_i (1 - p_i).$$
+
+$\bm W$ and $\bm z$ change every step: **iteratively reweighted least squares** (IWLS). This is how `glm()` fits.
+
+## IWLS in R
+
+```{r iwls}
+b <- c(0, 0)
+for (i in 1:6) {
+  eta <- b[1] + b[2] * x
+  p <- plogis(eta)
+  w <- p * (1 - p)
+  z <- eta + (y - p) / w
+  b <- coef(lm(z ~ x, weights = w))
+}
+rbind(iwls = b, newton = bhat)
+```
+
+## Other GLMs
+
+The same loop fits other models. Only the mean $\mu_i$ and the weight $w_i$ change:
+$$z_i = \eta_i + \frac{y_i - \mu_i}{w_i}.$$
+
+| Model | $\mu_i$ | $w_i$ |
+|---|---|---|
+| logistic | $1 / (1 + e^{-\eta_i})$ | $\mu_i (1 - \mu_i)$ |
+| Poisson | $e^{\eta_i}$ | $\mu_i$ |
+
+In each row $w_i$ is the variance of $y_i$ as a function of its mean.
+
+##  {.standout}
+
+Complete B.2
+
+# Standard Errors
+
+## Information SE
+
+At the MLE, $-\bm H = \bm X^T \bm W \bm X$ is the observed information, and the variance of $\hat{\bm\beta}$ is about $(\bm X^T \bm W \bm X)^{-1}$ if the model is right.
+
+```{r se-info}
+V <- solve(-hess(bhat))
+rbind(newton = sqrt(diag(V)),
+      glm = summary(glm(y ~ x, family = binomial))$coefficients[, 2])
+```
+
+Newton computed $\bm H$ at every step, so the standard errors cost one more `solve`.
+
+## Sandwich SE
+
+The sandwich keeps $\bm A = \bm X^T \bm W \bm X$ and measures the spread of the scores from the data:
+$$\bm A^{-1} \bm B \bm A^{-1}, \qquad \bm B = \sum_{i=1}^n (y_i - p_i)^2 \bm x_i \bm x_i^T.$$
+
+```{r se-sand}
+p <- drop(plogis(X %*% bhat))
+A <- t(X) %*% (p * (1 - p) * X)
+B <- t(X) %*% ((y - p)^2 * X)
+V_sand <- solve(A) %*% B %*% solve(A)
+rbind(information = sqrt(diag(V)), sandwich = sqrt(diag(V_sand)))
+```
+
+##  {.standout}
+
+Complete B.3
+
+# Separation
+
+## Separated Data
+
+Replace temperature with an indicator of a cold launch, below 65°F.
+
+```{r cold}
+cold <- as.numeric(oring$temp < 65)
+table(cold, distress = y)
+```
+
+- All 4 cold flights had distress, so the best fitted probability for a cold flight is 1.
+- $p = 1$ needs $\beta_0 + \beta_1 = \infty$. No finite $\bm\beta$ maximizes $\ell$.
+- The data are **separated**: a predictor sorts some of the 1s from all of the 0s.
+
+## Newton under Separation
+
+```{r sep-setup, include=FALSE}
+X <- cbind(1, cold)
+ll_c <- function(b) sum(dbinom(y, 1, plogis(X %*% b), log = TRUE))
+```
+
+`grad` and `hess` use the current `X`, which now holds `cold`. `ll_c` is the log-likelihood.
+
+```{r sep-path}
+path_c <- newton_k(grad, hess, c(0, 0), maxit = 30)
+data.frame(b0 = path_c[, 1], b1 = path_c[, 2],
+           loglik = apply(path_c, 1, ll_c))[c(1:4, 31), ]
+```
+
+$\beta_1$ grows by 1 every step, and $\ell$ rises toward a limit it never reaches.
+
+## `glm()` under Separation
+
+```{r sep-glm}
+fit_c <- glm(y ~ cold, family = binomial)
+round(summary(fit_c)$coefficients[, 1:2], 2)
+fit_c$converged
+```
+
+- `glm()` stops when the deviance, $-2\ell$, stops changing, so it reports convergence.
+- The signs of separation are a large coefficient and a standard error in the thousands.
+
+##  {.standout}
+
+Complete B.4
