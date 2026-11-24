@@ -1,0 +1,412 @@
+---
+title: "Resampling Structured Data"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%", cache = TRUE, autodep = TRUE)
+options(width = 60, digits = 4)
+set.seed(20261103)
+library(tidyverse)
+B <- 2000
+```
+
+
+## Is Lake Huron falling?
+
+`LakeHuron` ships with R: the level of the lake in feet, measured once a year from 1875 to 1972.
+
+```{r huron-plot, echo=FALSE, fig.height=2.2, fig.width=6}
+huron <- as.numeric(LakeHuron)
+n <- length(huron)
+year <- 1875:1972
+ggplot(data.frame(year, level = huron), aes(year, level)) +
+  geom_line() + geom_point(size = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x) +
+  labs(y = "level (feet)")
+```
+
+Goal: confidence interval for the slope of the line.
+
+## The trend
+
+```{r huron-trend}
+fit_h <- lm(huron ~ year)
+y_hat_h <- fitted(fit_h)
+z <- resid(fit_h)
+summary(fit_h)$coefficients["year", 1:2]
+slope <- function(y) cov(year, y) / var(year)
+```
+
+The lake fell about `r round(-100 * coef(fit_h)[["year"]], 1)` feet per century. `slope` computes the least squares slope of any series against `year`.
+
+The SE from `summary` assumes the residuals are independent. Is this a reasonable idea?
+
+## Limits of the bootstrap
+
+So far the bootstrap has assumed **independent** and **identically distributed** observations.
+
+* Levels in neighboring years may be dependent, through longer-term weather patterns or man-made changes.
+* The distribution of water levels may change over the period.
+
+Solution: use a model to say which parts of the data are independent, and resample those.
+
+## Models say what to resample
+
+| Model | Resample |
+|---|---|
+| $X_t$ iid | observations (deck 1) |
+| random walk, $X_t = X_{t-1} + \epsilon_t$ | differences $X_t - X_{t-1}$ |
+| trend plus stationary noise, $X_t = m(t) + Z_t$ | blocks of residuals |
+| $Y_i = \beta_0 + \beta_1 x_i + \epsilon_i$, $\epsilon_i$ iid | residuals |
+| the same, with $\Var{\epsilon_i}$ depending on $x_i$ | residuals with random signs |
+| $(X_i, Y_i)$ iid | rows |
+| groups with their own distributions and fixed sizes | rows within each group |
+
+# Dependent Data
+
+## Model 1: a random walk
+
+If $X_t = X_{t-1} + \epsilon_t$ with $\epsilon_t$ iid, the differences are iid. Resample them, and add them up from $x_1$.
+
+```{r rw-boot}
+d <- diff(huron)
+boot_rw <- replicate(B, {
+  d_star <- sample(d, replace = TRUE)
+  slope(huron[1] + c(0, cumsum(d_star)))
+})
+c(random_walk = sd(boot_rw),
+  summary = summary(fit_h)$coefficients["year", "Std. Error"])
+```
+
+## A random walk wanders
+
+```{r rw-pic, echo=FALSE, fig.height=2.3, fig.width=6}
+rw_paths <- map_dfr(1:3, \(b) data.frame(
+  year, level = huron[1] + c(0, cumsum(sample(d, replace = TRUE))), path = paste("bootstrap", b)))
+bind_rows(data.frame(year, level = huron, path = "data"), rw_paths) |>
+  ggplot(aes(year, level, color = path)) + geom_line() +
+  labs(y = "level (feet)", color = NULL)
+```
+
+The bootstrap series drift far from 579 feet and stay there. Lake Huron's level keeps returning, which the differences alone cannot reproduce. The model is wrong, and its SE is `r round(sd(boot_rw) / summary(fit_h)$coefficients["year", "Std. Error"])` times the one from `summary`.
+
+## Model 2: a trend plus stationary noise
+
+Write the series as
+$$X_t = m(t) + Z_t,$$
+with $m(t) = \beta_0 + \beta_1 t$ and $Z_t$ **stationary**: its distribution does not change over time, so it has the same mean and variance in every year, and correlations that depend only on the lag. 
+
+To bootstrap the slope:
+
+1. resample the residuals $z_t$,
+2. add them to the fitted trend, $x^*_t = \hat m(t) + z^*_t$,
+3. refit the slope.
+
+
+## Naive method: resample single residuals
+
+```{r huron-iid}
+boot_iid <- replicate(B, slope(y_hat_h + sample(z, replace = TRUE)))
+c(bootstrap = sd(boot_iid),
+  summary = summary(fit_h)$coefficients["year", "Std. Error"])
+```
+
+This is a regression bootstrap: `year` stays fixed, residuals are drawn one at a time and added to the fitted line, and the slope is refit. It agrees with `summary`, and both assume the residuals are independent.
+
+## Neighboring years are close
+
+Pair each residual with the next year's, and correlate:
+
+```{r huron-lag1}
+cor(z[-n], z[-1])
+```
+
+This is the **lag-1 autocorrelation**. The lag-$j$ autocorrelation $\rho_j$ pairs $Z_t$ with $Z_{t+j}$, and `acf` computes it for several $j$:
+
+```{r huron-acf}
+round(acf(z, lag.max = 8, plot = FALSE)$acf[-1], 2)
+```
+
+The correlations are near 0 by lag 5. Resampling runs of about that length keeps them.
+
+
+## Resample runs, not points
+
+Fix a **block length** $\ell$. The $n - \ell + 1$ blocks are the runs
+$$(z_j, z_{j+1}, \ldots, z_{j + \ell - 1}), \quad j = 1, \ldots, n - \ell + 1.$$
+
+To draw one bootstrap series, draw blocks with replacement and put them end to end until there are $n$ values. Keep the first $n$.
+
+Within a block the dependence is kept. It is broken only where two blocks meet.
+
+## In R
+
+```{r block-boot}
+block_boot <- function(x, stat, B, l) {
+  n <- length(x)
+  replicate(B, {
+    xs <- c()
+    while (length(xs) < n) {
+      i <- sample(n - l + 1, 1)
+      xs <- c(xs, x[i:(i + l - 1)])
+    }
+    stat(xs[1:n])
+  })
+}
+```
+
+A block starts at most at $n - \ell + 1$, so that it ends by $x_n$.
+
+## A block bootstrap series
+
+```{r block-pic, echo=FALSE, fig.height=2.4, fig.width=6}
+bind_rows(
+  data.frame(year, z, series = "residuals"),
+  data.frame(year, z = as.vector(block_boot(z, identity, 1, 10)), series = "blocks of 10")
+) |>
+  mutate(series = fct_inorder(series)) |>
+  ggplot(aes(year, z)) + geom_line() + facet_wrap(~ series, nrow = 1) +
+  labs(y = "residual (feet)")
+```
+
+## The SE of the slope against $\ell$
+
+```{r se-vs-l, fig.height=1.8, fig.width=6}
+ls <- c(1, 2, 3, 5, 8, 10, 15, 20)
+boot_slope <- \(l) block_boot(z, \(zs) slope(y_hat_h + zs), B, l)
+se_l <- map_dbl(ls, \(l) sd(boot_slope(l)))
+ggplot(data.frame(l = ls, se = se_l), aes(l, se)) +
+  geom_line() + geom_point()
+```
+
+## Reading the plot
+
+- $\ell = 1$ is the naive method.
+- The SE rises with $\ell$ and levels off near `r signif(mean(se_l[ls >= 8]), 2)` for $\ell \ge 8$, about twice the SE from `summary`.
+- A block of length $\ell$ keeps the correlations up to lag $\ell - 1$. Once $\rho_j$ is near 0 beyond lag $\ell$, longer blocks add nothing.
+
+## Choosing $\ell$
+
+- $\ell$ has to be **long** compared with the reach of the dependence, so a block keeps it, and **short** compared with $n$, so there are many blocks to draw.
+- In practice, compute the SE for a range of $\ell$ and use a value where it has leveled off.
+- In theory, the best $\ell$ for an SE grows like $n^{1/3}$ (Bühlmann, *Bootstraps for Time Series*, Statistical Science, 2002): 4.6 for $n = 98$. The constant depends on the dependence, so the rule gives a rate, not a value.
+
+## CI based on block bootstrap
+
+```{r huron-interval}
+se_10 <- sd(boot_slope(10))
+coef(fit_h)[["year"]] + c(-1.96, 1.96) * se_10
+```
+
+# Independent, Not Identically Distributed
+
+## Independent, not identical
+
+Now suppose the observations are independent, but each has its own distribution:
+$$Y_i = \beta_0 + \beta_1 x_i + \epsilon_i,$$
+so each $Y_i$ has its own mean, and possibly its own variance.
+
+- **Resample cases**: draw rows $(x_i, y_i)$ with replacement, as for the Flint pairs in deck 1.
+- **Resample errors**: keep each $x_i$, and set
+$$y_i^* = \hat y_i + e_i^*,$$
+where $\hat y_i$ is the fitted value and $e_1^*, \ldots, e_n^*$ are drawn with replacement from the residuals $e_1, \ldots, e_n$. This is the naive method for Lake Huron, blocks of length 1.
+
+
+## Stopping distances
+
+`cars` ships with R: the speed (mph) and stopping distance (feet) of 50 cars, recorded in the 1920s.
+
+```{r cars-plot, echo=FALSE, fig.height=2.2, fig.width=6}
+ggplot(cars, aes(speed, dist)) + geom_point() +
+  geom_smooth(method = "lm", se = FALSE, formula = y ~ x) +
+  labs(x = "speed (mph)", y = "stopping distance (feet)")
+```
+
+## The fitted line
+
+```{r cars-fit}
+x <- cars$speed
+y <- cars$dist
+n_c <- length(x)
+fit <- lm(dist ~ speed, data = cars)
+y_hat <- fitted(fit)
+e <- resid(fit)
+coef(fit)
+```
+
+`y_hat` holds the fitted values $\hat y_i$, and `e` the residuals $e_i = y_i - \hat y_i$.
+
+## Resampling cases
+
+Draw rows, and refit the line to each bootstrap sample. As for Lake Huron, `cov(x, y) / var(x)` is the least squares slope.
+
+```{r cars-cases}
+slope_cases <- replicate(B, {
+  i <- sample(n_c, replace = TRUE)
+  cov(x[i], y[i]) / var(x[i])
+})
+sd(slope_cases)
+```
+
+## Resampling errors
+
+Build each $y^*$ from the fitted values and resampled residuals, and refit.
+
+```{r cars-errors}
+slope_errors <- replicate(B, {
+  y_star <- y_hat + sample(e, replace = TRUE)
+  cov(x, y_star) / var(x)
+})
+c(cases = sd(slope_cases), errors = sd(slope_errors),
+  formula = summary(fit)$coefficients["speed", "Std. Error"])
+```
+
+All three agree for `cars`. Resampling errors assumes more: the errors are iid and do not depend on $x$.
+
+# The Wild Bootstrap
+
+## Residuals against speed
+
+```{r cars-resid, echo=FALSE, fig.height=2.3, fig.width=6}
+ggplot(data.frame(x, e), aes(x, e)) + geom_point() + geom_hline(yintercept = 0, lty = 2) +
+  labs(x = "speed (mph)", y = "residual (feet)")
+```
+
+The residuals spread out as speed increases.
+
+## Resampling errors moves residuals
+
+A residual drawn for a car at 4 mph may come from a car at 24 mph.
+
+- The cars at the extreme speeds have the most influence on the slope.
+- If the errors are largest at high speeds, the real slope varies more than the bootstrap slopes, which spread the large residuals evenly over all speeds.
+- Then resampling errors understates the SE.
+
+
+## Keep each residual where it is
+
+The **wild bootstrap** keeps $x$ fixed, and keeps each residual at its own $x_i$, with a random sign:
+$$y_i^* = \hat y_i + e_i V_i, \qquad V_i = \begin{cases} +1 & \text{with probability } 1/2, \\ -1 & \text{with probability } 1/2. \end{cases}$$
+
+- A residual of $-30$ feet at 24 mph becomes $\pm 30$ feet at 24 mph.
+- The $x$ values are the original ones, as when resampling errors.
+
+## Why it works
+
+Each $y_i^*$ has mean $\hat y_i$ and variance $e_i^2$, so the bootstrap spread at each speed comes from the residual at that speed.
+
+- Large residuals at high speeds stay at high speeds, where they move the slope most.
+- One squared residual is a poor estimate of the error variance at its own $x_i$. But the slope combines all $n$ of them, and the errors average out.
+
+## In R
+
+```{r wild}
+slope_wild <- replicate(B, {
+  V <- sample(c(-1, 1), n_c, replace = TRUE)
+  cov(x, y_hat + e * V) / var(x)
+})
+c(cases = sd(slope_cases), errors = sd(slope_errors),
+  wild = sd(slope_wild))
+```
+
+For `cars` the three agree. The spread grows with speed, but not enough at the extreme speeds to change the SE.
+
+## Cases or wild?
+
+- **Errors** assume the errors are iid and do not depend on $x$. Plot the residuals against $x$ first.
+- **Cases** allow random $x$. The fitted line does not have to be the true mean, since each bootstrap sample refits it.
+- **Wild** keeps the original $x$ values, so no bootstrap sample loses the extreme speeds. It needs the fitted line to be right, since every $y_i^*$ is built from $\hat y_i$.
+
+# Strata
+
+## US states
+
+`state.x77` ships with R: figures for the 50 states from the 1970s. `state.region` puts each state in one of four regions.
+
+```{r states}
+states <- data.frame(state.x77, region = state.region)
+sapply(split(states$HS.Grad, states$region), median)
+```
+
+`HS.Grad` is the percent of adults with a high school diploma. The regions differ: the South is lowest and the West highest.
+
+## The interquartile range
+
+How spread out are graduation rates across the states?
+
+```{r states-iqr}
+quantile(states$HS.Grad, c(0.25, 0.75))
+IQR(states$HS.Grad)
+```
+
+- The **interquartile range** is the 75th percentile minus the 25th: the width of the middle half of the states.
+- It has no simple formula for its SE, so we bootstrap it.
+
+## Resample within each region
+
+Each region has a fixed number of states. Treat the regions as strata, and resample states within each one.
+
+```{r strata}
+in_region <- split(1:50, states$region)
+iqr_hs <- \(i) IQR(states$HS.Grad[i])
+boot_strata <- replicate(10000, {
+  iqr_hs(unlist(map(in_region, \(k) sample(k, replace = TRUE))))
+})
+sd(boot_strata)
+```
+
+Every bootstrap sample has `r paste(lengths(in_region), collapse = ", ")` states, as the data do.
+
+## Or resample all 50 states?
+
+```{r strata-rows}
+boot_rows <- replicate(10000, iqr_hs(sample(50, replace = TRUE)))
+c(strata = sd(boot_strata), all_rows = sd(boot_rows))
+```
+
+- Resampling all 50 lets the number of states from each region vary. One sample might have 12 Southern states, the next 20.
+- The South is low and the West high, so a changing mix changes the spread, and the SE is `r round(100 * (sd(boot_rows) / sd(boot_strata) - 1))`% larger.
+- That extra variation is not in the data: the regions always have `r paste(lengths(in_region), collapse = ", ")` states.
+
+## Comparing groups
+
+How much higher is the West's median graduation rate than the South's?
+
+- A statistic that compares groups computes one piece from each group, here a median for each region.
+- Resampling within each region computes every median from the region's own number of states: `r lengths(in_region)[["West"]]` Western and `r lengths(in_region)[["South"]]` Southern, every time.
+- Resampling all 50, 95% of samples would have between `r qbinom(0.025, 50, 13/50)` and `r qbinom(0.975, 50, 13/50)` Western states, and between `r qbinom(0.025, 50, 16/50)` and `r qbinom(0.975, 50, 16/50)` Southern.
+
+## The West minus the South
+
+```{r strata-compare}
+west_south <- function(i) {
+  r <- states$region[i]
+  g <- states$HS.Grad[i]
+  median(g[r == "West"]) - median(g[r == "South"])
+}
+boot_ws <- replicate(10000, {
+  west_south(unlist(map(in_region, \(k) sample(k, replace = TRUE))))
+})
+c(estimate = west_south(1:50), quantile(boot_ws, c(0.025, 0.975)))
+```
+
+# Summary
+
+## Summary
+
+- Each scheme starts from a model that says what is iid, and resamples that.
+- A random walk makes the differences iid. It does not fit a series that keeps returning to its level, such as Lake Huron.
+- The **moving block bootstrap** resamples runs of length $\ell$ from a **stationary** series. Remove a trend first, resample the residuals in blocks, and add the trend back. Increase $\ell$ until the SE levels off.
+- In regression, **resample cases**, or **resample errors** when the error variance does not depend on $x$.
+- The **wild bootstrap** keeps each residual at its own $x_i$ and flips its sign at random. It allows the error variance to change with $x$.
+- When groups have fixed sizes, or a statistic compares groups, **resample within each group**.

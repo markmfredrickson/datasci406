@@ -1,0 +1,108 @@
+---
+pagetitle: "Quiz 3.2: Leave One Out"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 3.2**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+In a sample of lead levels, several samples are tied at the median, and the
+jackknife SE of the median comes out to exactly 0. What does this tell you?
+
+1. The median is estimated without error.
+1. The leave-one-out medians take only a few distinct values.
+1. The sample is too small. With more samples the jackknife SE would
+   converge to the true SE of the median.
+1. The factor $(n - 1)/n$ should be left out for the median.
+
+### Solution
+
+**Answer: 2.** Leaving out one observation moves the median at most to a
+neighboring order statistic, so the $T_{(i)}$ take only two or three values.
+With ties at the median, those values are all equal and the jackknife SE is
+0. Option 1 is wrong because the median does vary from sample to sample.
+Option 3 is wrong because the ratio of the jackknife SE to the true SE does
+not converge to 1 as $n$ grows. Option 4 is wrong because the factor scales
+the SE and cannot make it nonzero. Bootstrap the median instead.
+
+## Question 2 (1 point)
+
+The bootstrap-$t$ interval uses the replicates
+$$W^*_b = \frac{T^*_b - T}{\widehat{\text{SE}}^*_b}, \quad b = 1, \ldots, B.$$
+Which SE goes in the denominator?
+
+1. The jackknife SE from the original sample, the same for every $b$.
+1. The standard deviation of all $B$ bootstrap replicates $T^*_1, \ldots, T^*_B$.
+1. The bootstrap SE from the original sample, the same for every $b$.
+1. The jackknife SE computed from bootstrap sample $b$ itself.
+
+### Solution
+
+**Answer: 4.** Each $W^*_b$ is studentized with an SE from its own bootstrap
+sample, here a jackknife on the $n$ values in sample $b$, at a cost of
+$B \times n$ evaluations. Options 1, 2 and 3 all divide every replicate by
+the same constant, which only rescales $T^*_b - T$. The SE from the original
+sample is used once, outside $W^*$, in
+$\left[T - \widehat{\text{SE}} \, W^*_{1 - \alpha/2}, \; T - \widehat{\text{SE}} \, W^*_{\alpha/2}\right]$.
+
+## Question 3 (1 point)
+
+Polynomials of degree $d = 1, \ldots, 10$ are fit to the same data. The
+training MSE falls with every increase in $d$. Why does this not show that
+$d = 10$ predicts best?
+
+1. Each fit is scored on the same points that were used to fit it.
+1. The training MSE has Monte Carlo error, so small differences are noise.
+1. A model with more parameters always predicts new points worse.
+1. Leave-one-out MSE always chooses $d = 1$.
+
+### Solution
+
+**Answer: 1.** A flexible model can bend toward each training point, which
+lowers the training error without lowering the error on a new point.
+Leaving out the point being predicted removes that advantage. Option 2 is
+wrong because nothing in a training MSE is random once the data are fixed.
+Option 3 is wrong because extra parameters can help or hurt, which is
+what cross-validation is for.
+Option 4 is wrong because cross-validation can choose any degree.
+
+## Question 4 (1 point)
+
+A bike share predicts tomorrow's rentals $y$ with $\hat y$ to decide how many
+bikes to put out. Running out of bikes is a much worse mistake than leaving
+some unused. With $e = y - \hat y$, three losses are
+$$\text{squared: } e^2, \qquad \text{absolute: } |e|, \qquad \text{pinball: } L_\tau(e) = \begin{cases} \tau \, e & e > 0, \\ (1 - \tau)(-e) & e \le 0. \end{cases}$$
+Which loss should cross-validation use?
+
+1. Squared error.
+1. Absolute error.
+1. Pinball loss with $\tau = 0.9$.
+1. Pinball loss with $\tau = 0.1$.
+
+### Solution
+
+**Answer: 3.** Running out means the prediction was too low, so $e > 0$, and
+the pinball loss charges $\tau \, e$ for those errors. A large $\tau$ makes
+them the expensive ones: with $\tau = 0.9$, an error of one bike too few
+costs 0.9 and one bike too many costs 0.1. Option 4 reverses the costs.
+Options 1 and 2 treat the two directions equally.
+
+**Rubric.** 1 pt per question, no partial credit.

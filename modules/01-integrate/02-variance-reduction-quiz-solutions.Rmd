@@ -1,0 +1,116 @@
+---
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+**DATASCI 406 FA 26, Quiz 1.2**
+
+**Name and Uniqname:**
+
+## Question 1 (1 point)
+
+You are estimating $\theta = \int_0^1 e^u \, du = e - 1 \approx 1.718$ with
+**antithetic variables**, starting from `tmp <- runif(5000)`.
+
+Which line computes the antithetic estimate? **Circle one.**
+
+1. `mean(exp(tmp) + exp(1 - tmp))`
+1. `mean((exp(tmp) + exp(1 - tmp)) / 2)`
+1. `mean(exp(tmp) * exp(1 - tmp))`
+1. `mean(exp(tmp)) - mean(exp(1 - tmp))`
+
+### Solution
+
+**Answer: 2.** Each pair contributes the average of its two values,
+$[t(U_i) + t(1 - U_i)]/2$, and the estimate is the mean of those 5,000 pair
+averages. Option 1 omits the division by 2 and returns about $2\theta =
+3.44$. Option 3 returns $e \approx 2.718$ every time, since $e^u e^{1-u} = e$
+for any $u$. Option 4 subtracts two estimates of the same quantity and
+returns about 0.
+
+## Question 2 (1 point)
+
+All of the techniques covered in this most recent video improved the **efficiency of our estimates**.
+Which of the following is **not** a feature of a more efficient Monte Carlo estimator? **Circle one.**
+
+1. Narrow confidence intervals
+2. Smaller variance
+3. Faster convergence than $O(n^{-1/2})$
+4. Asymptotic Normal distribution
+
+### Solution
+
+**Answer: 3.** Variance reduction shrinks the constant in front of
+$n^{-1/2}$; it does not change the rate. The other three do describe a more
+efficient estimator: the variance is smaller, so the intervals are narrower,
+and the estimator is still a sample mean, so it is still asymptotically
+normal.
+
+## Question 3 (3 points)
+
+You want to estimate $\theta = \E{X^3}$ for $X \sim \text{Exp}(1)$, so
+$h(x) = x^3$ and $f(x) = e^{-x}$. The **solid** curve is $|h(x)| f(x)$; the
+**dashed** and **dotted** curves are two candidate envelope densities, A and
+B, each rescaled to a comparable height --- so read their **shapes**, not
+their heights. The right panel is the same three curves on a log vertical
+axis, where a rescaling only shifts a curve up or down.
+
+```{r fig.width = 6.2, fig.height = 2.0}
+target <- function(x) x^3 * exp(-x)
+mx <- target(3)
+A <- function(x) mx * dnorm(x, 3, 1) / dnorm(3, 3, 1)
+B <- function(x) mx * dgamma(x, 4, 0.8) / dgamma(3.75, 4, 0.8)
+
+par(mfrow = c(1, 2), mar = c(2.6, 2.1, 1.2, 0.6), mgp = c(1.5, 0.4, 0),
+    tcl = -0.3, cex.axis = 0.8, cex.main = 0.9)
+curve(target(x), 0, 12, n = 400, lwd = 2, xlab = "x", ylab = "", yaxt = "n",
+      main = "linear scale")
+curve(A(x), add = TRUE, lty = 2, lwd = 2)
+curve(B(x), add = TRUE, lty = 3, lwd = 2)
+legend("topright", lwd = 2, lty = 1:3, bty = "n", cex = 0.8,
+       legend = c("|h(x)| f(x)", "envelope A", "envelope B"))
+curve(target(x), 0.2, 12, n = 400, lwd = 2, log = "y", ylim = c(1e-8, 3),
+      xlab = "x", ylab = "", main = "same curves, log scale")
+curve(A(x), add = TRUE, lty = 2, lwd = 2)
+curve(B(x), add = TRUE, lty = 3, lwd = 2)
+```
+
+Circle the envelope you would use and justify the choice in two or three
+sentences. Your answer must say **both** (i) what the better envelope's
+shape has to do with $|h(x)| f(x)$, and (ii) what happens to the values $h(x) f(x) / g(x)$ for the **other** envelope when $x$ is large and why is this a problem.
+
+Circle: **A** or **B**
+
+<!-- answer-space: 1.9in -->
+
+### Solution
+
+**Answer: B.**
+
+1. **Why B.** The variance-minimizing envelope is proportional to
+   $|h(x)| f(x)$, so we want the candidate whose shape follows the solid
+   curve. B does so across the whole range; A matches only near the peak.
+2. **What goes wrong with A.** A falls off much faster than the target in the
+   right tail, which the log panel shows as A bending away from the solid
+   curve. The weights $h(x) f(x) / g(x)$ then grow without bound, so the
+   estimate comes to depend on a few huge weights attached to draws that A
+   almost never makes. B stays roughly parallel to the target and a little
+   above it, so its weights stay bounded and the variance is finite.
+
+For your information, A is $N(3, 1)$ and B is Gamma(4, rate 0.8). The variance of a single term is
+about 766 for A and 6.4 for B, and sampling directly from Exp(1) gives 778,
+so A buys essentially nothing despite sitting on the peak. B's weight works
+out to $6 \cdot 0.8^{-4} e^{-0.2x} \le 14.6$. Gamma(4, rate 1) would have
+been exactly proportional to $x^3 e^{-x}$, giving every weight the value
+$\Gamma(4) = 6$ and zero variance, but choosing it requires already knowing
+$\theta = 6$.
+
+**Rubric.** 1 pt for B, 1 pt for (i), 1 pt for (ii).
+

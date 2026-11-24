@@ -1,0 +1,7 @@
+> con <- file("/dev/urandom", "rb", raw = TRUE)
+> V <- readBin(con, "integer", n = 6, size = 2, signed = FALSE)
+> close(con)
+> V
+[1] 38738 60890 56231 65318 11557 47707
+> V/2^16
+[1] 0.5910950 0.9291077 0.8580170 0.9966736 0.1763458 0.7279510

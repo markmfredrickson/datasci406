@@ -1,0 +1,100 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\ind}{\mathbf{1}}
+**Quiz 1.1**
+
+**Name and Uniqname:**
+
+Each question has **one correct answer.** Circle the correct answer only.
+
+## Question 1 
+
+Which R expression is a Monte Carlo estimate of $\int_0^1 \cos(\pi x / 2) \, dx$?
+
+1. `cos(pi * mean(runif(1000)) / 2)`
+1. `mean(cos(pi * runif(1000) / 2))`
+1. `mean(cos(pi * (1:1000) / 2000))`
+1. `mean(runif(1000)) * cos(pi / 2)`
+
+### Solution
+
+**Answer: 2.** A Monte Carlo estimate averages the function evaluated at the
+draws. Option 1 evaluates the function at the average instead, and $E(g(U))$
+is not $g(E(U))$. Option 3 is a grid rule. Option 4 has nothing to do with
+the integrand.
+
+## Question 2 
+
+You want to estimate $\int_0^\infty g(x) \, dx$ using draws
+`x <- rexp(n)` from the Exp(1) distribution. Which estimator is correct?
+
+1. `mean(g(x) * dexp(x))`
+1. `mean(g(x))`
+1. `mean(g(dexp(x)))`
+1. `mean(g(x) / dexp(x))`
+
+### Solution
+
+**Answer: 4.** If $X$ has density $f$, then $\E{g(X)/f(X)} = \int g(x)\,dx$
+over the region where $f$ is positive. Dividing by the density is what turns
+an expectation into the integral we want. Option 2 estimates $\int g f$,
+which is a different integral.
+
+## Question 3 
+
+Let `x <- rexp(10000)`. What does `mean(x <= 2)` estimate?
+
+1. $P(X \le 2)$
+1. $\E{\min(X, 2)}$
+1. The density of $X$ at 2
+1. $\E{X} \times P(X \le 2)$
+
+### Solution
+
+**Answer: 1.** `x <= 2` is a vector of indicators for the event $X \le 2$,
+and the expected value of an indicator is the probability of the event. So
+the sample mean estimates $P(X \le 2)$. The exact value is `pexp(2)`.
+
+## Question 4 
+
+You estimate $\theta = P(X > 3)$ by the sample mean of the indicators
+$\ind(X_i > 3)$. Why is `binom.test` preferred over `t.test` for the
+confidence interval?
+
+1. `t.test` cannot handle values of 0 and 1.
+1. `binom.test` intervals are always narrower.
+1. The indicators are Bernoulli, so a proportion interval applies exactly.
+1. The indicators are not identically distributed.
+
+### Solution
+
+**Answer: 3.** Each indicator is Bernoulli($\theta$), so a binomial interval
+is exact rather than an approximation. `t.test` runs on 0/1 data without
+complaint, but its interval leans on the central limit theorem. Binomial
+intervals are also not always narrower.
+
+## Question 5 
+
+With $n$ function evaluations in $k$ dimensions, grid-based integration has
+error rate $O(n^{-2/k})$, while Monte Carlo has error rate $O(n^{-1/2})$.
+
+For an integral with 8 dimensions ($k=8$), which method would be expected to have less error for a very large number of function evaluations (i.e. $n$ is large)?
+
+1. Grid-based
+2. Monte Carlo
+3. They would be about the same
+4. It depends on the function being integrated, not $k$ or $n$.
+
+### Solution
+
+**Answer: 2.** At $k = 8$ the grid error goes like $n^{-2/8} = n^{-1/4}$,
+which is slower than Monte Carlo's $n^{-1/2}$, so Monte Carlo wins once $n$
+is large. The rates tie at $k = 4$, and the grid is better below that. The
+integrand affects the constants in both rates, but for large $n$ the
+exponents decide, so option 4 is wrong.
+

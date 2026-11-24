@@ -1,0 +1,282 @@
+---
+title: "Module 4 Project, Part A: Root Finding and Newton's Method"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+set.seed(20261119)
+library(tidyverse)
+```
+
+\newcommand{\E}[1]{\text{E}\left(#1\right)}
+\newcommand{\Var}[1]{\text{Var}\left(#1\right)}
+\newcommand{\iid}{\overset{\text{iid}}{\sim}}
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 4 - Fit, each in its own file. This is Part A. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+Fill in the code chunk after each direction, then delete its `eval = FALSE` so it runs. The chunks start with `eval = FALSE` so the file knits before you begin.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Column definitions are in [The Data](project-data.html) (`project-data.Rmd`).
+Reading `brain_cells` takes several seconds.
+
+```{r brain}
+cells <- read.csv("../../data/brain_cells.csv.gz")
+dim(cells)
+```
+
+`x` holds the library sizes of the cells in batch 1, a single sequencing
+run. A droplet that captured two cells (a **doublet**) has about twice the
+RNA of one cell, so unusually large libraries are a quality problem.
+
+```{r lib}
+x <- cells$library[cells$batch == 1]
+n <- length(x)
+n
+```
+
+# Part A
+
+## A.1
+
+Model the library sizes as $X_i \iid \text{Gamma}(\alpha, \beta)$. Then
+$\hat\beta = \alpha / \bar x$, and $\hat\alpha$ solves $g(\alpha) = 0$
+with
+$$g(\alpha) = \log \alpha - \text{digamma}(\alpha) - c, \qquad c = \log \bar x - \frac{1}{n} \sum_{i=1}^n \log x_i.$$
+
+(a) Plot a histogram of `x`. Compute the method of moments estimate
+$\tilde\alpha = \bar x^2 / s^2$.
+
+```{r a1-a, eval = FALSE}
+ggplot(data.frame(x), aes(x)) + geom_histogram(bins = 100)
+a_mom <-
+a_mom
+```
+
+(b) Write $g$ and its derivative, $g'(\alpha) = 1/\alpha - \text{trigamma}(\alpha)$.
+
+```{r a1-b, eval = FALSE}
+c0 <-
+g <- function(a)
+dg <- function(a)
+```
+
+(c) Complete `newton`, which returns every iterate. Run it from
+$\tilde\alpha$.
+
+```{r a1-c, eval = FALSE}
+newton <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    x[i + 1] <-                      # one Newton step from x[i]
+    if (is.nan(x[i + 1]) || abs(x[i + 1] - x[i]) < tol) break
+  }
+  x
+}
+path <- newton(g, dg, a_mom)
+path
+ahat <- path[length(path)]
+```
+
+(d) Check $\hat\alpha$ with `uniroot`. How many bisection steps would take
+the bracket $[1, 20]$ to a width of $10^{-10}$?
+
+```{r a1-d, eval = FALSE}
+uniroot(g, c(1, 20), tol = 1e-10)$root
+ceiling(log2(  ))
+```
+
+(e) The method of moments estimate is far from $\hat\alpha$. Which feature of
+the histogram inflates $s^2$, and so shrinks $\tilde\alpha$?
+
+## A.2
+
+Newton fails if a step lands at $\alpha \le 0$, where $\log \alpha$ is
+undefined. From a start $\alpha_0$, the first step lands at
+$$\alpha_1(\alpha_0) = \alpha_0 - \frac{g(\alpha_0)}{g'(\alpha_0)}.$$
+A start just right of $\hat\alpha$ lands near $\hat\alpha$. The further right
+the start, the further left the first step lands, because $g$ flattens out.
+Some start $\alpha^*$ lands exactly at 0, and every start past $\alpha^*$ lands
+below 0.
+
+(a) `first_step(a0)` below returns $\alpha_1(\alpha_0)$, the point where the
+first step from `a0` lands. $\alpha^*$ is the start where the first step lands
+at 0, so it is where `first_step` equals 0: the root of `first_step`. Use
+`uniroot` to find it on the bracket $(\hat\alpha, 100)$. `first_step` is
+positive at $\hat\alpha$, where the step is 0, and negative at 100. How many
+times larger than $\hat\alpha$ is $\alpha^*$?
+
+Check that your $\alpha^*$ is reasonable: Newton from just below it should
+still converge to $\hat\alpha$, and from just above it should fail.
+
+```{r a2-a, eval = FALSE}
+first_step <- function(a0) a0 - g(a0) / dg(a0)
+a_star <-
+c(a_star = a_star, ahat = ahat)
+newton(g, dg, a_star - 0.1)
+newton(g, dg, a_star + 0.1)
+```
+
+(b) Run `newton` from $\alpha_0 = 10$, a start past $\alpha^*$. Where does
+the first step land, and why is every iterate after it `NaN`?
+
+```{r a2-b, eval = FALSE}
+newton(g, dg, 10)
+```
+
+(c) Newton's step points the right way but can be far too long. **Step
+halving** keeps the direction and shortens the step: compute the full Newton
+step, then halve it as long as either
+
+- the new point `x[i] + step` is not positive, or
+- $|g|$ at the new point is larger than $|g(x_i)|$, so the step made things
+  worse.
+
+Fill in the `while` condition with these two tests, joined by `||` ("or").
+Run `newton_halve` from 10 and compare its iterates with (b). Is the full step
+accepted once the iterates are close to $\hat\alpha$?
+
+```{r a2-c, eval = FALSE}
+newton_halve <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    step <- -g(x[i]) / dg(x[i])
+    while (     ) step <- step / 2
+    x[i + 1] <- x[i] + step
+    if (abs(step) < tol) break
+  }
+  x
+}
+newton_halve(g, dg, 10)
+```
+
+## A.3
+
+A simple quality control rule drops the cells above the 0.99 quantile of the
+fitted gamma, as likely doublets. That quantile $q$ solves
+$$h(q) = F(q) - 0.99 = 0,$$
+where $F$ is the $\text{Gamma}(\hat\alpha, \hat\beta)$ CDF. Its derivative is
+the density, so Newton's update is $q \leftarrow q - (F(q) - 0.99) / f(q)$.
+
+(a) The fitted gamma has shape $\hat\alpha$ from A.1 and rate
+$\hat\beta = \hat\alpha / \bar x$. Write $h(q)$ with
+`pgamma(q, ahat, bhat)` and $h'(q)$ with `dgamma(q, ahat, bhat)`. Run `newton`
+from the fitted mean, $\hat\alpha / \hat\beta = \bar x$, which is below the
+0.99 quantile. The last iterate should match `qgamma(0.99, ahat, bhat)`.
+
+```{r a3-a, eval = FALSE}
+bhat <- ahat / mean(x)
+h <- function(q)
+dh <- function(q)
+newton(h, dh, mean(x))
+qgamma(0.99, ahat, bhat)
+```
+
+(b) Run `newton` from 40,000, far out in the right tail. First print
+$f(40000)$. The first step is $-h(q)/f(q)$, and $h(40000)$ is about 0.01.
+Why is the step so long, where does it land, and what do `pgamma` and
+`dgamma` return there?
+
+```{r a3-b, eval = FALSE}
+dh(40000)
+newton(h, dh, 40000)
+```
+
+(c) Compare the gamma cutoff with the 0.99 quantile of the data,
+`quantile(x, 0.99)`. Count the cells above each cutoff. If the gamma fit the
+right tail, about 1% of the `r n` cells would be above the gamma cutoff. What
+does the gap say about the gamma's right tail?
+
+```{r a3-c, eval = FALSE}
+q_gamma <- qgamma(0.99, ahat, bhat)
+q_data <- quantile(x, 0.99)
+c(gamma = sum(x > q_gamma), data = sum(x > q_data))
+```
+
+## A.4
+
+The **standard error** of $\hat\alpha$ is the standard deviation of its
+sampling distribution: how much $\hat\alpha$ would vary from one sample of
+`r n` cells to another. In large samples $\hat\alpha$ is approximately
+normal, so $\hat\alpha \pm 2\,\text{SE}$ is an approximate 95% interval. Three
+ways to estimate the SE differ in what they assume.
+
+(a) **The information.** If the data are gamma, the variance of $\hat\alpha$
+is about $1 / J$, where $J = -\ell_p''(\hat\alpha)$ is the **observed
+information**: the curvature of the log-likelihood at its maximum. A sharper
+peak means a larger $J$ and a smaller SE. Here $\ell_p(\alpha)$ is the
+log-likelihood with $\beta = \alpha / \bar x$ plugged in, and
+$\ell_p'(\alpha) = n g(\alpha)$, so $\ell_p''(\alpha) = n g'(\alpha)$: your
+`dg` times $n$. Compute $J$, then $\text{SE} = 1 / \sqrt J$.
+
+```{r a4-a, eval = FALSE}
+J <-
+se_info <- 1 / sqrt(J)
+se_info
+```
+
+(b) **The bootstrap.** Draw $n$ cells from `x` with replacement, refit
+$\alpha$ to the resample, and repeat $B = 1000$ times. The standard deviation
+of the 1000 refits estimates the SE. For a resample `y`, $\hat\alpha$ solves
+the same equation as in A.1 with `y` in place of `x`:
+$\log \alpha - \text{digamma}(\alpha) - c_y = 0$, where
+$c_y = \log \bar y - \frac{1}{n} \sum \log y_i$. Fill in `c_y` and the
+function inside `uniroot`. `uniroot` on $[1, 20]$ cannot fail the way Newton
+can from a bad start. The loop takes a few seconds.
+
+```{r a4-b, eval = FALSE}
+boot_a <- replicate(1000, {
+  y <- sample(x, replace = TRUE)
+  c_y <-
+  uniroot(function(a)     , c(1, 20))$root
+})
+se_boot <- sd(boot_a)
+se_boot
+```
+
+(c) **The sandwich.** The information uses the model twice: for the
+curvature of the log-likelihood, and again to say how much the score varies
+from sample to sample. Under the model the two are equal. The sandwich keeps
+the model's curvature (the "bread") but measures the variability of the
+score from the data (the "meat").
+
+Because $\hat\beta$ is estimated too, the sandwich works with both
+parameters at once.
+
+- Each cell's **score** $s_i$ is the gradient of $\log f(x_i \mid \alpha, \beta)$
+  at $(\hat\alpha, \hat\beta)$, with entries
+  $\log \hat\beta - \text{digamma}(\hat\alpha) + \log x_i$ and
+  $\hat\alpha / \hat\beta - x_i$. `S` holds one row per cell.
+- $H$ is the $2 \times 2$ matrix of second derivatives (Hessian) of the
+  whole log-likelihood at $(\hat\alpha, \hat\beta)$.
+- The variance matrix of $(\hat\alpha, \hat\beta)$ is
+  $V = H^{-1} \left(\sum_i s_i s_i^T\right) H^{-1}$, and its first diagonal
+  entry is the variance of $\hat\alpha$.
+
+In R, `solve(H)` is $H^{-1}$, `crossprod(S)` is $\sum_i s_i s_i^T$, and `%*%`
+multiplies matrices. As a check, the information SE from both parameters,
+$\sqrt{[(-H)^{-1}]_{11}}$, is the same as `se_info` from (a).
+
+```{r a4-c, eval = FALSE}
+S <- cbind(log(bhat) - digamma(ahat) + log(x), ahat / bhat - x)
+H <- -n * matrix(c(trigamma(ahat), -1 / bhat, -1 / bhat, ahat / bhat^2), 2)
+sqrt(solve(-H)[1, 1])
+V <-
+se_sand <- sqrt(V[1, 1])
+c(information = se_info, sandwich = se_sand, bootstrap = se_boot)
+```
+
+(d) Which of the three assumes the data are gamma? Which two agree? Using
+your answer to A.3(c), explain why the third disagrees, and whether it is
+too large or too small.
+

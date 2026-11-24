@@ -1,0 +1,173 @@
+---
+title: "Module 3 Project, Part E: Permutation Tests for Vectors and Tables"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20261110)
+library(tidyverse)
+```
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 3 - Resample, each in its own file. This is Part E. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+This part is turn-in 3.5, worth 1 point for completion. Knit it to HTML and upload the `.html` file to Canvas.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Part E uses the Capital Bikeshare data from Part A. `type` splits the days
+that are not working days into weekends and holidays.
+
+```{r bikes}
+bikes <- read.csv("../../data/bikes.csv") %>%
+  mutate(type = case_when(workingday == 1 ~ "working",
+                          weekday %in% c(0, 6) ~ "weekend",
+                          TRUE ~ "holiday"))
+count(bikes, type)
+pval <- function(t_null, t_obs) (1 + sum(t_null >= t_obs)) / (length(t_null) + 1)
+plot_null <- function(t_null, t_obs) {
+  ggplot(tibble(t = t_null), aes(t)) + geom_histogram(bins = 40) +
+    geom_vline(xintercept = t_obs, color = "red")
+}
+```
+
+`pval()` gives a one-sided permutation $p$-value. `plot_null()` draws the
+null distribution from the shuffles, with the observed value in red.
+
+# Part E: Permutation tests for vectors and tables
+
+E.1 and E.2 are worked in class. E.1 asks whether holidays look like weekends
+or like working days, using each day's vector (`casual`, `registered`). E.2
+tests whether humidity and rentals are independent. E.3 is done outside class
+and combines the two. Treat the days as independent throughout.
+
+## E.1: The energy test (in class)
+
+Do riders treat holidays like working days or like weekends? Holidays fall
+on weekdays, but most people do not work. Each day gives a vector
+$X_i$ = (`casual`, `registered`). Test two hypotheses:
+
+- $H_0$: holidays and working days have the same distribution of $X_i$.
+- $H_0$: holidays and weekends have the same distribution of $X_i$.
+
+Pool the two samples, of sizes $m$ and $n$, into $Z_1, \ldots, Z_{m + n}$, and
+let $D_{ij} = \|Z_i - Z_j\|$, the Euclidean distance
+$\sqrt{\sum_k (Z_{ik} - Z_{jk})^2}$. The energy statistic is
+$$\widehat E = \frac{2}{mn} \sum_{i \in X, \, j \in Y} D_{ij} - \frac{1}{m^2} \sum_{i, j \in X} D_{ij} - \frac{1}{n^2} \sum_{i, j \in Y} D_{ij}.$$
+It is near 0 when the samples are mixed together, and large values are
+evidence against $H_0$.
+
+1. Plot `registered` against `casual` for all days, colored by `type`.
+   Where do the holidays sit?
+2. `filter` to the holidays and weekends, and call the result `wk`. Let
+   `g_wk` be `TRUE` for the holidays. Compute `D_wk`, the $N \times N$ matrix
+   of distances between every pair of days: `dist()` computes the distances
+   from the two columns, and `as.matrix()` turns its result into a matrix.
+3. Write `energy(D, g)`. Each sum divided by its count is the mean of a block
+   of `D`. For example, `D[g, !g]` holds the distances between a holiday and
+   a weekend day, so `mean(D[g, !g])` is the first term without the 2.
+4. Write `energy_null(D, g)`, which shuffles `g` with `sample(g)` $B = 2000$
+   times and returns `energy` on each shuffle. `D` does not change between
+   shuffles, so compute it once.
+5. For holidays against weekends, report the $p$-value and plot the null
+   distribution with `plot_null()`. Then make `wd`, `g_wd` and `D_wd` the
+   same way for holidays against working days, and do the same. Which group
+   do holidays resemble?
+
+## E.2: Pearson and distance correlation (in class)
+
+Are rentals related to humidity? Test $H_0$: `humidity` and `total` are
+independent, by shuffling `total` against `humidity`. Pearson's $r$ is one
+statistic, and distance correlation is another.
+
+For $n$ pairs $(x_i, y_i)$, let $a_{ij} = |x_i - x_j|$ and double-center it,
+$$\widetilde{a}_{ij} = a_{ij} - \bar a_{i \cdot} - \bar a_{\cdot j} + \bar a_{\cdot \cdot},$$
+with row means, column means and the overall mean. Do the same for
+$b_{ij} = |y_i - y_j|$. Then
+$$\text{dCov}_n^2(x, y) = \frac{1}{n^2} \sum_{i, j} \widetilde{a}_{ij} \widetilde{b}_{ij}, \qquad
+\text{dCor}_n(x, y) = \sqrt{\frac{\text{dCov}_n^2(x, y)}{\sqrt{\text{dCov}_n^2(x, x) \, \text{dCov}_n^2(y, y)}}}.$$
+The population dCor is 0 only under independence.
+
+1. Plot `total` against `humidity`, adding
+   `geom_smooth(method = "loess", formula = y ~ x)`.
+2. Let `x <- bikes$humidity` and `y <- bikes$total`. Compute $r$, and a
+   two-sided permutation $p$-value from $B = 2000$ shuffles of `y`, using
+   $|r|$. Plot the null distribution of $r$.
+3. Write `center(D)`, which computes $\widetilde{a}$ from $a$.
+   `outer(rowMeans(D), colMeans(D), "+")` is the matrix of row mean plus
+   column mean.
+4. Write `dcor(A, B)` for two centered matrices. Each sum divided by $n^2$ is
+   a `mean()`. Center the distance matrices of `x` and `y` once, as `A` and
+   `Bc`.
+5. Shuffle with `p <- sample(nrow(bikes))` and `Bc[p, p]`, $B = 999$ times.
+   Shuffling `y` moves the rows and columns of its distance matrix together,
+   and centering commutes with that, so `Bc` is computed only once. Report
+   dCor, the largest null value and the $p$-value, and plot the null
+   distribution.
+6. Compute $r$ separately for days with humidity below 60 and at or above 60.
+   Use this and the plot to explain why $r$ is small while dCor rejects.
+
+## E.3(a): Nearest neighbors and units (outside class)
+
+Does the nearest-neighbor test also tell holidays from working days, and
+does its answer depend on the units? The comparison is 21 days against 500.
+
+Let $N(i)$ be the day closest to day $i$, other than $i$ itself. Two statistics
+count days whose nearest neighbor has the same label:
+$$T_{NN} = \sum_i \mathbf{1}\{g_i = g_{N(i)}\}, \qquad T_{\text{hol}} = \sum_i \mathbf{1}\{g_i \text{ and } g_{N(i)} \text{ are both holidays}\}.$$
+Both are one-sided: large values are evidence against $H_0$.
+
+1. Write `nearest(D)`, which returns $N(i)$ for every $i$, and `t_nn(nn, g)`,
+   as in the deck. Also write `t_hol(nn, g)`, which is `sum(g & g[nn])`.
+2. Write `nn_tests(D, g)`, which finds the neighbors once, computes both
+   statistics on the same $B = 2000$ shuffles, and returns each one's observed
+   value, null mean and $p$-value. Inside `replicate`, shuffle once and return
+   `c(all = t_nn(nn, s), holiday = t_hol(nn, s))`. Run it on `D_wd`.
+3. Under $H_0$ a day's nearest neighbor has a label drawn at random from the
+   other 520 days. About what fraction of working days have a working-day
+   neighbor? Use this to explain which statistic is more sensitive.
+4. Report the SDs of `casual` and `registered` in `wd`. Rerun the energy test
+   and `nn_tests` with the columns standardized by `scale()`. Which coordinate
+   dominates the unscaled distance, and which results changed? Both columns
+   count riders. Which scale would you use, and why?
+
+## E.3(b): A two-sample test is a test of independence (outside class)
+
+Is a two-sample test a test of independence? The holiday and weekend data
+can be read as pairs $(X_i, L_i)$, with
+$X_i$ = (`casual`, `registered`) and $L_i = 1$ for a holiday, 0 for a weekend
+day. $F = G$ says $X$ is independent of $L$.
+
+1. Compute $\text{dCov}_n^2(X, L)$ = `mean(A * B)`, with `A` the centered
+   `D_wk` and `B` the centered distance matrix of `as.numeric(g_wk)`.
+2. Divide it by `energy(D_wk, g_wk)`, and compare the ratio with
+   $2(mn/N^2)^2$, where $m$ and $n$ are the group sizes and $N = m + n$.
+3. Shuffling the labels does not change $m$ and $n$. What does that say
+   about the $p$-values of the energy test and the dCov test of independence
+   on the same shuffles?
+
+## E.3(c): Weather on working days (outside class)
+
+Is the weather different on working days? `weather` is 1 (clear), 2 (mist
+or cloud) or 3 (light rain or snow), and `workingday` is 0 or 1.
+
+1. Make the table of `weather` against `workingday`.
+2. Compute midranks with `s <- rank(bikes$weather)`. Check the three distinct
+   values against $\#\{\text{lower categories}\} + (\#\{\text{this category}\} + 1)/2$,
+   computed from the counts.
+3. Let $W$ be the sum of the working days' midranks. Under $H_0$, $W$ has mean
+   $m(N + 1)/2$, with $m$ working days out of $N = 731$. Shuffle `workingday`
+   $B = 4000$ times, and compute the two-sided $p$-value from
+   $|W^* - m(N + 1)/2| \ge |W - m(N + 1)/2|$. Plot the null distribution of
+   $W$.
+4. Compare with `wilcox.test(s[g], s[!g], exact = FALSE)$p.value`, where `g`
+   marks working days. Is the weather different on working days?
+

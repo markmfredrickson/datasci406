@@ -1,0 +1,113 @@
+---
+title: "Module 3 Project, Part D: Permutation Tests"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20261105)
+library(tidyverse)
+```
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 3 - Resample, each in its own file. This is Part D. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+This part is turn-in 3.4, worth 1 point for completion. Knit it to HTML and upload the `.html` file to Canvas.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Part D uses the Capital Bikeshare data from Part A.
+
+```{r bikes}
+bikes <- read.csv("../../data/bikes.csv")
+n <- nrow(bikes)
+```
+
+# Part D: Permutation tests
+
+D.1 compares each Saturday with the Sunday after it, using sign flips. D.2
+and D.3 compare working days with weekends and holidays by shuffling labels.
+Treat the days as independent throughout.
+
+## D.1(a): Saturdays and Sundays
+
+1. `sat <- which(bikes$weekday == 6)` gives the rows of the Saturdays, and
+   the row after each is a Sunday. Compute
+   `d <- bikes$total[sat] - bikes$total[sat + 1]`, Saturday minus Sunday for
+   each weekend.
+2. Under $H_0$, each $D_i$ is symmetric about 0. Using
+   $T = \bar D$, draw $B = 10000$ random sign patterns with
+   `sample(c(-1, 1), length(d), replace = TRUE)`, and compute $T$ for each,
+   with the signs applied to `abs(d)`.
+3. The null distribution is symmetric about 0, so the two-sided $p$-value
+   is $(1 + \#\{|T^*_b| \ge |T|\}) / (B + 1)$. Report $T$ and the $p$-value.
+
+## D.1(b): An interval by inverting the test
+
+To test $H_0$: symmetric about $\theta_0$, flip the signs of $D_i - \theta_0$.
+One matrix of sign patterns serves every $\theta_0$.
+
+1. Make `S`, a $10000 \times 105$ matrix of random signs, with
+   `matrix(sample(c(-1, 1), 10000 * 105, replace = TRUE), 10000)`.
+2. For row $b$ of `S`,
+   $$T^*_b(\theta_0) = \frac{1}{n} \sum_i S_{bi} (d_i - \theta_0) = \frac{1}{n} \sum_i S_{bi} d_i - \theta_0 \frac{1}{n} \sum_i S_{bi}.$$
+   Compute the first term for every row at once with `S %*% d / length(d)`,
+   and the second with `rowMeans(S)`.
+3. Write `p_two(theta0)`, which returns the two-sided $p$-value of
+   $T = \bar d - \theta_0$.
+4. Use `map_dbl` to compute `p_two` for `seq(-200, 800, by = 2)`, and report
+   the smallest and largest $\theta_0$ with $p > 0.05$. Compare this 95%
+   interval with `t.test(d)$conf.int`.
+
+## D.2(a): Working days and the rest
+
+`workingday` is 1 for the `r sum(bikes$workingday)` days that are neither
+weekends nor holidays. Test whether `total` has the same distribution on
+working days as on the other days.
+
+1. Let `g <- bikes$workingday == 1` and `z <- bikes$total`. Write
+   `three(z, g)`, which returns the difference in means, the difference in
+   medians, and the Kolmogorov-Smirnov statistic
+   $\max_x |\hat F(x) - \hat G(x)|$ between the two groups. For KS, evaluate
+   `ecdf(z[g])` and `ecdf(z[!g])` at `sort(unique(z))`.
+2. Shuffle the labels with `sample(g)` $B = 4000$ times, computing all three
+   statistics on each shuffle.
+3. Report the three $p$-values, $(1 + \#\{|T^*_b| \ge |T|\}) / (B + 1)$.
+4. Find the value of `total` where the two empirical CDFs are farthest apart,
+   and the fraction of each group below it. What difference did KS find?
+
+## D.2(b): Ranks
+
+1. Replace `z` by `rank(z)`, and let $W$ be the sum of the ranks of the
+   working days.
+2. Under $H_0$, $W$ has mean $m(N + 1)/2$, with $m$ working days out of
+   $N = 731$. Shuffle the labels $B = 4000$ times, and compute the two-sided
+   $p$-value from $|W^* - m(N + 1)/2| \ge |W - m(N + 1)/2|$.
+3. Compare with `wilcox.test(z[g], z[!g])$p.value`.
+
+## D.3: Unequal spreads
+
+Casual riders differ between the two groups in both mean and spread. To ask
+whether the permutation test of the difference in means can be trusted as a
+test of **equal means**, build two populations with equal means and the
+observed spreads.
+
+1. Report the number of days, the mean, and the SD of `casual` in each group.
+2. Center each group at 0: within `group_by(workingday)`, `mutate` a column
+   `casual - mean(casual)`, and `pull` it out as a vector `centered`.
+3. Simulate $R = 500$ datasets. In each, resample the centered values of each
+   group with replacement, keeping the group sizes, so both populations have
+   mean 0. Run two permutation tests with $B = 400$ shuffles each: one with
+   the difference in means, and one with Welch's statistic
+   $$\frac{\bar X - \bar Y}{\sqrt{s_X^2 / m + s_Y^2 / n}}.$$
+   Record whether each two-sided $p$-value is at most 0.05.
+4. Report the rejection rate of each test. Which test has the right size for
+   equal means? Use the group sizes and SDs from step 1 to explain the other.
+

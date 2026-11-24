@@ -1,0 +1,97 @@
+---
+pagetitle: "Quiz 2.4: Multivariate Distributions and Processes"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 2.4**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+$X \sim \text{Exp}(1)$, and given $X = x$, $Y \sim \text{Poisson}(x)$. Which
+code draws `n` pairs $(X, Y)$ from this joint distribution?
+
+1. `x <- rexp(n); y <- rpois(n, x)`
+1. `x <- rexp(n); y <- rpois(n, rexp(n))`
+1. `x <- rexp(n); y <- rpois(n, mean(x))`
+1. `y <- rpois(n, 1); x <- rexp(n, y)`
+
+### Solution
+
+**Answer: 1.** Draw $X$ from its marginal, then each $Y_i$ given its own
+$X_i$. Option 2 gives $Y$ the right marginal but draws it independently of
+$X$, which a QQ plot of $Y$ alone would not catch. Option 3 uses one rate for
+every $Y_i$. Option 4 invents a factoring the problem does not give.
+
+## Question 2 (1 point)
+
+$\mathbf{Z} \sim N_2(\mathbf{0}, \mathbf{I}_2)$. For which matrix $\mathbf{C}$ is
+$\mathbf{C}\mathbf{Z} \sim N_2\left(\mathbf{0}, \begin{pmatrix} 4 & 2 \\ 2 & 2 \end{pmatrix}\right)$? Hint: recall for matrix multiplication, $C = AB$ has $C_{ij} = \sum_k^n A_{ik} B_{kj}$.
+
+\noindent\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}llll@{}}
+1. $\begin{pmatrix} 4 & 0 \\ 2 & 2 \end{pmatrix}$ &
+2. $\begin{pmatrix} 2 & 0 \\ 0 & \sqrt{2} \end{pmatrix}$ &
+3. $\begin{pmatrix} 2 & 0 \\ 1 & 1 \end{pmatrix}$ &
+4. $\begin{pmatrix} 2 & 1 \\ 0 & 1 \end{pmatrix}$
+\end{tabular*}
+
+### Solution
+
+**Answer: 3.** $\mathbf{C}\mathbf{Z}$ has covariance $\mathbf{C}\mathbf{C}^T$, and
+$\begin{pmatrix} 2 & 0 \\ 1 & 1 \end{pmatrix}\begin{pmatrix} 2 & 1 \\ 0 & 1 \end{pmatrix} = \begin{pmatrix} 4 & 2 \\ 2 & 2 \end{pmatrix}$.
+Option 1 skips the square root. Option 2 takes square roots of the variances
+and loses the covariance. Option 4 is `chol(Sigma)`, which is $\mathbf{C}^T$, and
+gives $\mathbf{C}\mathbf{C}^T = \begin{pmatrix} 5 & 1 \\ 1 & 1 \end{pmatrix}$.
+
+## Question 3 (1 point)
+
+Why is the multivariate normal a useful model for several correlated
+quantities, such as test statistics computed on the same subjects?
+
+1. It can represent any form of dependence between the quantities.
+1. Its dependence is set entirely by $\Sigma$, and the CLT makes many statistics approximately normal.
+1. Its components are independent, so each one can be drawn separately.
+1. Probabilities such as $P(\max_i |Z_i| > c)$ have closed forms, so no simulation is needed.
+
+### Solution
+
+**Answer: 2.** Dependence in the MVN is covariance and nothing else, so one
+matrix describes it, and the CLT means many estimators and test statistics
+are close to jointly normal. Option 1 overstates it: covariance captures only
+linear dependence. Option 3 holds only when $\Sigma$ is diagonal. Option 4
+is why we simulated: the FWER is a 10-dimensional normal integral.
+
+## Question 4 (1 point)
+
+You want to simulate a stock's log price at the close of each trading day
+for the next year. Which is the best tool?
+
+1. A Poisson process, with each arrival a trade.
+1. Independent normal draws, one for each day.
+1. A random walk with normal steps (Brownian motion on a daily grid).
+1. A spatial Poisson process, with days as the region.
+
+### Solution
+
+**Answer: 3.** Each day's log price is the previous day's plus a random
+change, so the process depends on the past through the most recent value.
+This is the model the turn-in fit to the S&P 500. Option 2 forgets
+yesterday's price entirely. Options 1 and 4 count events and cannot go down.
+
+**Rubric.** 1 pt per question, no partial credit.

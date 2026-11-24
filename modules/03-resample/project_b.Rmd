@@ -1,0 +1,177 @@
+---
+title: "Module 3 Project, Part B: Leave One Out"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+set.seed(20261029)
+library(tidyverse)
+```
+
+# Directions
+
+The project has 5 parts, one for each topic day of Module 3 - Resample, each in its own file. This is Part B. Complete each question, including the appropriate output.
+This document will be used on the exam. For any question make sure to display any requested output. If you use any AI assistance in implementing the R code, be prepared to explain how the implementation works.
+
+This part is turn-in 3.2, worth 1 point for completion. Knit it to HTML and upload the `.html` file to Canvas.
+
+Helpful hint: remember to knit the document periodically to make sure the project can be knit prior to printing out your paper copy before the exam.
+
+# Data
+
+Part B uses the Capital Bikeshare data from Part A.
+
+```{r bikes}
+bikes <- read.csv("../../data/bikes.csv")
+n <- nrow(bikes)
+```
+
+# Part B: Leave one out
+
+Part A bootstrapped the Gini coefficient $\hat G$. B.1 and B.2 use the
+jackknife on $\hat G$ for `casual` riders, and B.3 uses cross-validation to
+predict `total` from `temp`.
+
+## B.1(a): The jackknife SE
+
+1. Copy `gini` from A.2, set `x <- bikes$casual`, and compute $\hat G$ for
+   `x`. B.2 uses it.
+2. Write `jack_se(t_loo)`, which takes the $n$ leave-one-out values of a
+   statistic and returns
+   $\sqrt{\frac{n - 1}{n} \sum_{i=1}^n \left(T_{(i)} - \bar T_{(\cdot)}\right)^2}$.
+3. Compute the $n$ leave-one-out values $\hat G_{(i)}$ with `sapply` over
+   `1:n`, using `x[-i]` to drop day $i$. This takes a few seconds.
+4. Compute the jackknife SE, and the bootstrap SE from $B = 2000$ bootstrap
+   samples of `x`. Keep the bootstrap values of $\hat G$ for B.2.
+
+Do the two SEs agree?
+
+## B.1(b): A formula for the leave-one-out values
+
+Each call to `gini` computes all $n^2$ differences $|x_i - x_j|$, and (a)
+calls it $n$ times. Here we find all $n$ values $\hat G_{(i)}$ from one sort
+of the data.
+
+Sort the data, $x_{(1)} \le \cdots \le x_{(n)}$, and let
+$$a_k = \sum_{j=1}^n |x_{(k)} - x_{(j)}|,$$
+the total distance from $x_{(k)}$ to every observation. Work through these
+steps.
+
+1. The $j = k$ term of $a_k$ is 0, so split $a_k$ into the terms with
+   $j < k$ and the terms with $j > k$. For $j < k$, which is larger,
+   $x_{(k)}$ or $x_{(j)}$? Remove the absolute value, count the terms, and
+   show that
+   $$\sum_{j < k} |x_{(k)} - x_{(j)}| = (k - 1) x_{(k)} - \sum_{j < k} x_{(j)}.$$
+2. Do the same for the terms with $j > k$.
+3. Add the two sums and collect the terms in $x_{(k)}$ to show that
+   $$a_k = (2k - n - 1) x_{(k)} - \sum_{j < k} x_{(j)} + \sum_{j > k} x_{(j)}.$$
+4. Sorting does not change a sum, so the double sum in $\hat G$ is
+   $\sum_{i=1}^n \sum_{j=1}^n |x_i - x_j| = \sum_{k=1}^n a_k$. Now leave out
+   $x_{(k)}$. Think of the double sum as an $n \times n$ table with
+   $|x_{(i)} - x_{(j)}|$ in row $i$ and column $j$. Which row and which
+   column are removed, and what does each of them add up to? Show that the
+   double sum over the $n - 1$ observations that are left is
+   $\sum_{j=1}^n a_j - 2 a_k$.
+5. $\hat G_{(k)}$ is $\hat G$ computed from those $n - 1$ observations. Let
+   $\bar x_{(k)}$ be their mean. Show that
+   $$\hat G_{(k)} = \frac{\sum_{j=1}^n a_j - 2 a_k}{2 (n - 1)^2 \, \bar x_{(k)}}.$$
+
+## B.1(c): Implementing the formula
+
+Write `gini_loo(x)`, which returns all $n$ values $\hat G_{(k)}$ without
+`outer` and without a loop.
+
+**Vectorizing.** Arithmetic in R works element by element on whole vectors.
+If `s` is the sorted data, `(2 * (1:n) - n - 1) * s` is the vector of
+$(2k - n - 1) x_{(k)}$ for every $k$ at once. Write every piece of the
+formula this way, as a vector over $k$. A `for` loop over $k$ that computes
+each sum separately does $n$ steps for each of $n$ values of $k$, and that is
+the $n^2$ cost we are trying to avoid.
+
+**Cumulative sums.** `cumsum(s)` returns the running totals, so
+`cumsum(s)[k]` is $x_{(1)} + \cdots + x_{(k)}$. With `cs <- cumsum(s)`,
+
+- $\sum_{j < k} x_{(j)}$ is `cs[k] - s[k]`, the running total without $x_{(k)}$,
+- $\sum_{j > k} x_{(j)}$ is `cs[n] - cs[k]`, the grand total minus the running total,
+- $\bar x_{(k)}$ is `(cs[n] - s[k]) / (n - 1)`.
+
+Drop the `[k]` to get each one for every $k$. For `s <- c(1, 3, 4, 10)`, the
+running totals are 1, 4, 8, 18, the sums below are 0, 1, 4, 8, and the sums
+above are 17, 14, 10, 0.
+
+1. Compute the sums below and above for `s <- c(1, 3, 4, 10)` and check them
+   against the values above.
+2. Compute the vector `a` for that `s`. Check it against the definition,
+   `sapply(s, function(v) sum(abs(v - s)))`.
+3. Write `gini_loo(x)`. Sort `x` first, and use the formula from (b).
+4. Check `gini_loo` on the first 20 days, `z <- x[1:20]`, against
+   `sapply(1:20, function(i) gini(z[-i]))`. `gini_loo` returns the values in
+   sorted order, so compare `sort()` of each with `all.equal`.
+5. Compute the jackknife SE of $\hat G$ with `gini_loo(x)`. It should match
+   (a) to every digit. Why does the order of the leave-one-out values not
+   matter to the jackknife SE?
+
+## B.2: The bootstrap-$t$ interval
+
+The bootstrap-$t$ interval for $G$ needs a jackknife SE inside each bootstrap
+sample.
+
+1. Use `system.time` to time one jackknife SE computed with `gini`, as in
+   B.1(a). The `"elapsed"` entry is in seconds. About how long would
+   $B = 2000$ of them take? Do not run them; multiply.
+2. Time one jackknife SE computed with `gini_loo`.
+3. For $b = 1, \ldots, 2000$, draw a bootstrap sample `xs` of `x`, and
+   compute
+   $W^*_b = (\hat G^*_b - \hat G) / \widehat{\text{SE}}^*_b$,
+   where $\hat G^*_b$ is `gini(xs)` and $\widehat{\text{SE}}^*_b$ is the
+   jackknife SE of `xs` from `gini_loo`. Wrap the loop in `system.time`.
+4. With $\widehat{\text{SE}}$ the jackknife SE from B.1(a), the 95%
+   bootstrap-$t$ interval is
+   $$\left[\hat G - \widehat{\text{SE}} \, W^*_{0.975}, \; \hat G - \widehat{\text{SE}} \, W^*_{0.025}\right],$$
+   where $W^*_p$ is the $p$ quantile of the $W^*_b$. Report it beside the
+   percentile interval from the bootstrap values of B.1(a).
+
+## B.3(a): Choosing a degree
+
+The scatterplot in A.1 curves: rentals rise with temperature, then fall on
+the hottest days. Fit polynomials in `temp` of degree $d = 1, \ldots, 10$ and
+choose $d$ by 10-fold cross-validation.
+
+1. Assign each day to a fold, once, with
+   `fold <- sample(rep(1:10, length.out = n))`. `rep` makes 10 labels of
+   nearly equal count, and `sample` shuffles them. Use these folds for every
+   degree, so that degrees are compared on the same splits.
+2. Write `cv_err(d)`, which returns the vector of $n$ held-out errors. For
+   each fold $k$, fit `lm(total ~ poly(temp, d))` to the days not in fold
+   $k$, predict the days in fold $k$ with `predict`, and store
+   `total - prediction` for those days. `test <- fold == k` gives a logical
+   vector that selects them, `bikes[test, ]`, and its complement,
+   `bikes[!test, ]`.
+3. For each $d$, compute the training mean squared error, from the residuals
+   of one fit to all days, and the cross-validated mean squared error,
+   `mean(cv_err(d)^2)`.
+4. Plot both against $d$. Which degree does cross-validation choose? Why
+   does training error keep falling?
+
+## B.3(b): A different loss
+
+Capital Bikeshare plans how many bikes to have available from a predicted
+number of rentals. Running short costs more than having spare bikes, so score
+predictions with the pinball loss with $\tau = 0.9$, under which predicting
+too few costs 9 times as much as predicting too many.
+
+1. Write `pinball(e, tau = 0.9)` for $e = y - \hat y$: $\tau e$ when $e > 0$,
+   and $(1 - \tau)(-e)$ otherwise. `ifelse` works on a whole vector.
+2. Add an argument `shift` to `cv_err`. When `shift = TRUE`, the prediction
+   for fold $k$ is $\hat f(x) + c$, where $c$ is the 0.9 quantile of the
+   residuals of that fold's fit, `quantile(resid(fit), 0.9)`.
+3. With the degree chosen in (a), compute the cross-validated pinball loss of
+   the fitted value $\hat f(x)$ and of the shifted prediction. Use the same
+   folds.
+4. For each, what fraction of held-out days had more rentals than predicted?
+   Why is it about 10% for the shifted prediction?
+

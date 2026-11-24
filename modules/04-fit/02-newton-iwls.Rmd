@@ -1,0 +1,543 @@
+---
+title: "Newton's Method in $k$ Dimensions and IWLS"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 4: Fit"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(20261124)
+library(tidyverse)
+```
+
+# Overview
+
+## One Parameter
+
+The root finding lecture fit one parameter. $\hat\theta$ solves $g(\theta) = 0$, and Newton's method repeats
+$$\theta \leftarrow \theta - \frac{g(\theta)}{g'(\theta)}.$$
+
+- For an MLE, $g = \ell'$ and $g' = \ell''$.
+- The gamma has two parameters. We removed one with $\hat\beta = \alpha / \bar x$, which most models do not allow.
+
+## Several Parameters
+
+Most models have $k > 1$ parameters, $\bm\theta = (\theta_1, \ldots, \theta_k)$, that must be found together.
+
+- **Newton in $k$ dimensions:** $g$ becomes a vector and $g'$ a matrix.
+- **Logistic regression** by Newton, for the Challenger O-ring data.
+- **IWLS:** each Newton step is a weighted least squares fit. This is how `glm()` fits.
+- **Standard errors** from the matrix Newton already computed.
+- **Separation:** data for which the MLE does not exist.
+
+# Newton in $k$ Dimensions
+
+## Loss Surface
+
+The gamma model for ozone has two parameters, so its loss $-\ell(\alpha, \beta)$ is a surface. The MLE is the lowest point.
+
+```{r gamma-surface, echo=FALSE, fig.height=2.1, fig.width=3, out.width="49%", fig.show="hold"}
+oz <- as.numeric(na.omit(airquality$Ozone))
+loss <- function(a, b) -sum(dgamma(oz, shape = a, rate = b, log = TRUE))
+# the MLE, by the one-parameter equation from the root finding lecture
+a_mle <- uniroot(\(a) log(a / mean(oz)) + mean(log(oz)) - digamma(a),
+                 c(0.5, 5), tol = 1e-12)$root
+b_mle <- a_mle / mean(oz)
+
+a_seq <- seq(1, 2.8, length.out = 30)
+b_seq <- seq(0.02, 0.07, length.out = 30)
+par(mar = c(0, 1, 0, 0))
+view <- persp(a_seq, b_seq, outer(a_seq, b_seq, Vectorize(loss)),
+              theta = -30, phi = 30, col = "gray92", border = "gray55",
+              xlab = "alpha", ylab = "beta", zlab = "loss", cex.lab = 0.7)
+points(trans3d(a_mle, b_mle, loss(a_mle, b_mle), view), pch = 19, col = "red")
+
+surface <- expand.grid(a = seq(0.6, 4.2, length.out = 90),
+                       b = seq(0.012, 0.105, length.out = 90))
+surface$loss <- map2_dbl(surface$a, surface$b, loss)
+contours <- ggplot(surface, aes(a, b)) +
+  geom_contour(aes(z = loss), color = "gray60",
+               breaks = loss(a_mle, b_mle) + c(0.5, 2, 5, 10, 20, 40, 80, 160)) +
+  labs(x = "alpha", y = "beta")
+contours + annotate("point", x = a_mle, y = b_mle, color = "red", size = 2) +
+  coord_cartesian(xlim = range(a_seq), ylim = range(b_seq), expand = FALSE)
+```
+
+
+
+## Coordinate Descent
+
+One option needs only one-parameter Newton. Solve for $\alpha$ with $\beta$ held fixed, then for $\beta$ with $\alpha$ held fixed, and repeat.
+
+```{r coord-descent, echo=FALSE, fig.height=1.7, fig.width=6}
+# Newton's method for one parameter
+newton_1 <- function(g, dg, x, tol = 1e-12) {
+  for (i in 1:100) {
+    step <- -g(x) / dg(x)
+    x <- x + step
+    if (abs(step) < tol) break
+  }
+  x
+}
+# one pass: Newton for alpha with beta fixed, then for beta with alpha fixed
+coord_descent <- function(t0, tol = 1e-10, maxit = 500) {
+  n <- length(oz)
+  path <- matrix(t0, nrow = 1)
+  for (i in 1:maxit) {
+    b <- path[nrow(path), 2]
+    a <- newton_1(\(a) n * log(b) - n * digamma(a) + sum(log(oz)),
+                  \(a) -n * trigamma(a), path[nrow(path), 1])
+    path <- rbind(path, c(a, b))
+    b <- newton_1(\(b) n * a / b - sum(oz), \(b) -n * a / b^2, b)
+    path <- rbind(path, c(a, b))
+    if (max(abs(path[nrow(path), ] - path[nrow(path) - 2, ])) < tol) break
+  }
+  list(path = path, passes = i)
+}
+cd <- coord_descent(c(4, 0.095))
+contours +
+  annotate("path", x = cd$path[, 1], y = cd$path[, 2], color = "red") +
+  annotate("point", x = 4, y = 0.095, color = "red", size = 1.5) +
+  annotate("point", x = a_mle, y = b_mle, size = 1.5)
+```
+
+```{r coord-descent-rate, include=FALSE}
+cd_err <- abs(cd$path[seq(1, nrow(cd$path), 2), 1] - a_mle)
+cd_rate <- cd_err[21] / cd_err[20]
+```
+
+- Moving $\beta$ changes the best $\alpha$, so the path zigzags down the valley.
+- A pass multiplies the error by `r round(cd_rate, 2)`, about `r round(-1 / log10(cd_rate))` passes a digit: **linear convergence**.
+
+## Gradient and Hessian
+
+A log-likelihood $\ell(\bm\theta)$ with $k$ parameters has
+
+- a **gradient** $\bm g(\bm\theta)$, the vector of first derivatives $\partial \ell / \partial \theta_j$, and
+- a **Hessian** $\bm H(\bm\theta)$, the $k \times k$ matrix of second derivatives $\partial^2 \ell / \partial \theta_j \partial \theta_l$.
+
+The MLE solves $k$ equations in $k$ unknowns, $\bm g(\bm\theta) = \bm 0$. For the gamma, $\bm\theta = (\alpha, \beta)$ and
+$$\bm g = \begin{pmatrix} n \log \beta - n\, \text{digamma}(\alpha) + \sum \log x_i \\ n \alpha / \beta - \sum x_i \end{pmatrix}, \qquad
+\bm H = -n \begin{pmatrix} \text{trigamma}(\alpha) & -1/\beta \\ -1/\beta & \alpha/\beta^2 \end{pmatrix}.$$
+
+## Newton Step
+
+A first order Taylor expansion of the gradient around $\bm\theta_0$:
+$$\bm g(\bm\theta) \approx \bm g(\bm\theta_0) + \bm H(\bm\theta_0) (\bm\theta - \bm\theta_0).$$
+Set the right side to $\bm 0$ and solve:
+$$\bm\theta_1 = \bm\theta_0 - \bm H(\bm\theta_0)^{-1} \bm g(\bm\theta_0).$$
+
+- With $k = 1$ this is $\theta_0 - g(\theta_0) / g'(\theta_0)$.
+- The step $\bm d = \bm\theta_1 - \bm\theta_0$ solves the linear system $\bm H \bm d = -\bm g$. `solve(H, -g)` does this without forming $\bm H^{-1}$.
+
+## Newton in R
+
+```{r newton-k}
+newton_k <- function(grad, hess, b0, tol = 1e-10, maxit = 50) {
+  path <- matrix(b0, nrow = 1)
+  for (i in 1:maxit) {
+    b <- path[i, ]
+    step <- solve(hess(b), -grad(b))
+    path <- rbind(path, b + step)
+    if (max(abs(step)) < tol) break
+  }
+  path
+}
+```
+
+- Row $i$ of `path` is iterate $i - 1$.
+- The loop stops when no parameter moves by more than `tol`.
+
+## Gamma in Two Dimensions
+
+Ozone again, with `t` holding $(\alpha, \beta)$.
+
+```{r gamma2}
+oz <- as.numeric(na.omit(airquality$Ozone))
+n <- length(oz)
+grad_g <- function(t) {
+  c(n * log(t[2]) - n * digamma(t[1]) + sum(log(oz)),
+    n * t[1] / t[2] - sum(oz))
+}
+hess_g <- function(t) {
+  -n * matrix(c(trigamma(t[1]), -1 / t[2],
+                -1 / t[2], t[1] / t[2]^2), 2)
+}
+```
+
+## Gamma Iterates
+
+Start from the method of moments, $\alpha_0 = \bar x^2 / s^2$ and $\beta_0 = \alpha_0 / \bar x$.
+
+```{r gamma2-run}
+a0 <- mean(oz)^2 / var(oz)
+newton_k(grad_g, hess_g, c(a0, a0 / mean(oz)))
+```
+
+```{r gamma2-count, include=FALSE}
+steps_g <- nrow(newton_k(grad_g, hess_g, c(a0, a0 / mean(oz)))) - 1
+passes_g <- coord_descent(c(a0, a0 / mean(oz)))$passes
+```
+
+- The first column ends at $\hat\alpha = 1.699$, the root from the root finding lecture.
+- Newton takes `r steps_g` steps from this start, and coordinate descent `r passes_g` passes.
+
+## Cost of a Step
+
+| | $k = 1$ | $k$ parameters |
+|---|---|---|
+| first derivatives | 1 | $k$ |
+| second derivatives | 1 | $k(k+1)/2$ |
+| solve for the step | one division | about $k^3$ operations |
+
+- Convergence is still quadratic near the maximum.
+- For large $k$, building and solving with $\bm H$ is most of the work.
+
+# Logistic Regression
+
+## Challenger Flights
+
+Launch temperature and O-ring distress for the 23 shuttle flights before the Challenger, from module 2. The Challenger launched at 31°F.
+
+```{r oring, echo=FALSE, fig.height=2, fig.width=6}
+# UCI Machine Learning Repository, Challenger USA Space Shuttle O-Ring data
+# (Draper 1993), "erosion or blowby" file
+oring <- tibble(
+  temp = c(66, 70, 69, 68, 67, 72, 73, 70, 57, 63, 70, 78,
+           67, 53, 67, 75, 70, 81, 76, 79, 75, 76, 58),
+  distress = c(0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0,
+               0, 2, 0, 0, 0, 0, 0, 0, 2, 0, 1))
+ggplot(oring, aes(temp, as.numeric(distress > 0))) +
+  geom_point(size = 2, alpha = 0.5) +
+  geom_vline(xintercept = 31, lty = 2, color = "red") +
+  scale_x_continuous(limits = c(30, 82)) +
+  labs(x = "launch temperature (°F)", y = "any O-ring distress")
+```
+
+## Logistic Model
+
+$y_i = 1$ if flight $i$ had any distress, and $x_i$ is its temperature minus 70:
+$$P(y_i = 1) = p_i, \qquad \log \frac{p_i}{1 - p_i} = \eta_i = \beta_0 + \beta_1 x_i.$$
+
+The log-likelihood is
+$$\ell(\bm\beta) = \sum_{i=1}^n \left[ y_i \log p_i + (1 - y_i) \log (1 - p_i) \right] = \sum_{i=1}^n \left[ y_i \eta_i - \log(1 + e^{\eta_i}) \right].$$
+
+Module 2 added a prior and sampled the posterior. Here we maximize $\ell$.
+
+## Score Equations
+
+Let $\bm X$ be the $n \times 2$ matrix with rows $(1, x_i)$, so $\bm\eta = \bm X \bm\beta$. Since $\partial \log(1 + e^{\eta}) / \partial \eta = p$,
+$$\frac{\partial \ell}{\partial \beta_j} = \sum_{i=1}^n (y_i - p_i) x_{ij}, \qquad \bm g(\bm\beta) = \bm X^T (\bm y - \bm p).$$
+
+- At the MLE the residuals $y_i - p_i$ sum to 0, and so do the residuals times $x_i$.
+- Least squares solves $\bm X^T (\bm y - \bm X \bm\beta) = \bm 0$, which is linear in $\bm\beta$.
+- $\bm p$ is not linear in $\bm\beta$, so $\bm X^T (\bm y - \bm p) = \bm 0$ has no closed form.
+
+## Logistic Hessian
+
+Since $\partial p_i / \partial \eta_i = p_i (1 - p_i)$,
+$$\frac{\partial^2 \ell}{\partial \beta_j \partial \beta_l} = -\sum_{i=1}^n p_i (1 - p_i) x_{ij} x_{il}, \qquad \bm H(\bm\beta) = -\bm X^T \bm W \bm X,$$
+where $\bm W$ is diagonal with entries $w_i = p_i (1 - p_i)$.
+
+- $w_i$ is the variance of $y_i$.
+- $\bm H$ does not depend on $\bm y$.
+- $\bm X^T \bm W \bm X$ is positive definite, so $\ell$ is **concave**: it has at most one maximum.
+
+## Logistic Newton in R
+
+```{r logit-newton}
+y <- as.numeric(oring$distress > 0)
+x <- oring$temp - 70
+X <- cbind(1, x)
+grad <- function(b) drop(t(X) %*% (y - plogis(X %*% b)))
+hess <- function(b) {
+  p <- drop(plogis(X %*% b))
+  -t(X) %*% (p * (1 - p) * X)
+}
+path <- newton_k(grad, hess, c(0, 0))
+bhat <- path[nrow(path), ]
+```
+
+- `plogis(eta)` is $1 / (1 + e^{-\eta})$.
+- `p * (1 - p) * X` multiplies row $i$ of $\bm X$ by $w_i$. It is $\bm W \bm X$ without the $n \times n$ matrix.
+
+## Logistic Iterates
+
+```{r logit-path}
+data.frame(b0 = path[, 1], b1 = path[, 2],
+           error = sqrt(rowSums(sweep(path, 2, bhat)^2)))
+```
+
+`glm(y ~ x, family = binomial)` returns the same coefficients.
+
+## Newton Path
+
+Contours of $\ell(\beta_0, \beta_1)$ and the iterates from $(0, 0)$.
+
+```{r logit-contour, echo=FALSE, fig.height=2.4, fig.width=6}
+ll <- function(b0, b1) sum(dbinom(y, 1, plogis(b0 + b1 * x), log = TRUE))
+grid <- expand.grid(b0 = seq(-2.6, 0.4, length.out = 80),
+                    b1 = seq(-0.5, 0.05, length.out = 80))
+grid$ll <- map2_dbl(grid$b0, grid$b1, ll)
+ggplot(grid, aes(b0, b1)) +
+  geom_contour(aes(z = ll), color = "gray60",
+               breaks = max(grid$ll) - c(0.1, 0.5, 1, 2, 4, 8, 16)) +
+  annotate("path", x = path[, 1], y = path[, 2], color = "red") +
+  annotate("point", x = path[, 1], y = path[, 2], color = "red", size = 1.5) +
+  labs(x = "beta0", y = "beta1")
+```
+
+# IWLS
+
+## Weighted Least Squares
+
+Weighted least squares with outcome $z_i$ and weights $w_i$ minimizes
+$$\sum_{i=1}^n w_i (z_i - \bm x_i^T \bm\beta)^2.$$
+With $\bm W = \text{diag}(w_i)$ the solution has a closed form:
+$$\hat{\bm\beta} = (\bm X^T \bm W \bm X)^{-1} \bm X^T \bm W \bm z.$$
+
+In R this is `lm(z ~ x, weights = w)`.
+
+## Newton Step as Least Squares
+
+The logistic Newton step is
+$$\bm\beta_{\text{new}} = \bm\beta + (\bm X^T \bm W \bm X)^{-1} \bm X^T (\bm y - \bm p).$$
+Write $\bm\beta = (\bm X^T \bm W \bm X)^{-1} \bm X^T \bm W \bm X \bm\beta$ and $\bm y - \bm p = \bm W \bm W^{-1} (\bm y - \bm p)$:
+$$\bm\beta_{\text{new}} = (\bm X^T \bm W \bm X)^{-1} \bm X^T \bm W \bm z, \qquad z_i = \eta_i + \frac{y_i - p_i}{w_i}.$$
+
+- Each Newton step is a weighted least squares fit of the **working response** $\bm z$ on $\bm X$.
+- $\bm W$ and $\bm z$ change every step: **iteratively reweighted least squares** (IWLS).
+
+## IWLS in R
+
+```{r iwls}
+b <- c(0, 0)
+for (i in 1:6) {
+  eta <- b[1] + b[2] * x
+  p <- plogis(eta)
+  w <- p * (1 - p)
+  z <- eta + (y - p) / w
+  b <- coef(lm(z ~ x, weights = w))
+}
+rbind(iwls = b, newton = bhat)
+```
+
+## `glm()`
+
+`glm()` fits by IWLS. With `trace = TRUE` it prints the **deviance**, $-2 \ell$ for 0/1 data, at each step.
+
+```{r trace-digits, include=FALSE}
+op <- options(digits = 10)
+```
+
+```{r glm-trace}
+fit <- glm(y ~ x, family = binomial,
+           control = glm.control(trace = TRUE))
+```
+
+```{r trace-digits-off, include=FALSE}
+options(op)
+```
+
+- `glm()` stops when the deviance changes by a relative $10^{-8}$ or less.
+- This rule watches the objective $\ell$, not $\bm\beta$ or the gradient.
+
+## Other GLMs
+
+A generalized linear model has $\E{y_i} = \mu_i$, with $\mu_i$ a function of $\eta_i = \bm x_i^T \bm\beta$. For the usual (canonical) choices,
+$$\bm g = \bm X^T (\bm y - \bm\mu), \qquad \bm H = -\bm X^T \bm W \bm X, \qquad z_i = \eta_i + \frac{y_i - \mu_i}{w_i}.$$
+
+| Model | $\mu_i$ | $w_i$ |
+|---|---|---|
+| logistic | $1 / (1 + e^{-\eta_i})$ | $\mu_i (1 - \mu_i)$ |
+| Poisson | $e^{\eta_i}$ | $\mu_i$ |
+| normal | $\eta_i$ | 1 |
+
+- In each row $w_i$ is the variance of $y_i$ as a function of its mean.
+- For the normal, $\bm z = \bm y$ and IWLS is least squares, finished in one step.
+
+## Fisher Scoring
+
+`summary(fit)` ends with `Number of Fisher Scoring iterations: 5`.
+
+- **Fisher scoring** is Newton's method with $\bm H$ replaced by its expected value under the model.
+- For the models in the table $\bm H$ does not depend on $\bm y$, so its expected value is $\bm H$ and Fisher scoring is Newton's method.
+- For other choices of $\mu_i$, such as probit regression, the two differ. `glm()` uses Fisher scoring, which keeps the weighted least squares form.
+
+## Poisson IWLS
+
+```{r pois-iwls}
+cnt <- oring$distress   # O-rings with distress: 0, 1 or 2
+b <- c(0, 0)
+for (i in 1:10) {
+  mu <- exp(b[1] + b[2] * x)
+  z <- log(mu) + (cnt - mu) / mu
+  b <- coef(lm(z ~ x, weights = mu))
+}
+rbind(iwls = b, glm = coef(glm(cnt ~ x, family = poisson)))
+```
+
+Only the mean and the weights changed from the logistic loop.
+
+# Standard Errors
+
+## Information SE
+
+At the MLE, $-\bm H = \bm X^T \bm W \bm X$ is the observed information, and
+$$\widehat{\text{Var}}(\hat{\bm\beta}) = (\bm X^T \bm W \bm X)^{-1}.$$
+
+```{r se-info}
+V <- solve(-hess(bhat))
+rbind(newton = sqrt(diag(V)),
+      glm = summary(fit)$coefficients[, "Std. Error"])
+```
+
+Newton computed $\bm H$ at every step, so the standard errors cost one more `solve`.
+
+## Sandwich Variance
+
+A GLM is an M-estimator with estimating equation $\sum_i (y_i - p_i) \bm x_i = \bm 0$. Its sandwich variance is
+$$\bm A^{-1} \bm B \bm A^{-1}, \qquad \bm A = \bm X^T \bm W \bm X, \qquad \bm B = \sum_{i=1}^n (y_i - p_i)^2 \bm x_i \bm x_i^T.$$
+
+- $\bm A$ is the curvature, as in the information.
+- $\bm B$ is the spread of the scores $(y_i - p_i) \bm x_i$, measured from the data.
+- If the model for $p_i$ is right, $\E{(y_i - p_i)^2} = w_i$, so $\bm B$ estimates $\bm A$ and the sandwich is the information formula.
+
+## Sandwich SE
+
+```{r se-sand}
+p <- drop(plogis(X %*% bhat))
+A <- t(X) %*% (p * (1 - p) * X)
+B <- t(X) %*% ((y - p)^2 * X)
+V_sand <- solve(A) %*% B %*% solve(A)
+rbind(information = sqrt(diag(V)), sandwich = sqrt(diag(V_sand)))
+```
+
+A 0/1 outcome has variance $p_i (1 - p_i)$ whenever its mean is $p_i$. The two differ only if the model for $p_i$ is wrong, or by chance in a small sample.
+
+## Interval for $p(31)$
+
+For a flight at 31°F, $\bm x_0 = (1, -39)$ and $\hat\eta_0 = \bm x_0^T \hat{\bm\beta}$, with $\text{SE}(\hat\eta_0) = \sqrt{\bm x_0^T \bm V \bm x_0}$.
+
+```{r p31}
+x0 <- c(1, 31 - 70)
+eta0 <- sum(x0 * bhat)
+se0 <- sqrt(drop(t(x0) %*% V %*% x0))
+plogis(c(estimate = eta0, lower = eta0 - 1.96 * se0,
+         upper = eta0 + 1.96 * se0))
+```
+
+- The interval is computed for $\eta_0$ and then mapped to a probability, so it stays inside $(0, 1)$.
+- 31°F is 22°F colder than any flight in the data, so the interval is wide.
+
+## Bootstrap Refits
+
+```{r boot, warning=FALSE}
+boot_b1 <- replicate(2000, {
+  i <- sample(length(y), replace = TRUE)
+  coef(glm(y[i] ~ x[i], family = binomial))[2]
+})
+c(information = sqrt(V[2, 2]), bootstrap = sd(boot_b1))
+```
+
+- The bootstrap SE of $\hat\beta_1$ is `r round(sd(boot_b1) / sqrt(V[2, 2]))` times the information SE.
+- In `r round(100 * mean(boot_b1 < -2), 1)`% of resamples no flight with distress is warmer than a flight without. Those refits return slopes below $-3$, and no finite slope is the MLE.
+
+# Separation
+
+## Separated Data
+
+Replace temperature with an indicator of a cold launch, below 65°F.
+
+```{r cold}
+cold <- as.numeric(oring$temp < 65)
+table(cold, distress = y)
+```
+
+- All 4 cold flights had distress, so the best fitted probability for a cold flight is 1.
+- $p = 1$ needs $\beta_0 + \beta_1 = \infty$. No finite $\bm\beta$ maximizes $\ell$.
+- The data are **separated**: a predictor sorts some of the 1s from all of the 0s.
+
+## Newton under Separation
+
+```{r sep-newton, echo=FALSE}
+Xc <- cbind(b0 = 1, b1 = cold)
+grad_c <- function(b) drop(t(Xc) %*% (y - plogis(Xc %*% b)))
+hess_c <- function(b) {
+  p <- drop(plogis(Xc %*% b))
+  -t(Xc) %*% (p * (1 - p) * Xc)
+}
+ll_c <- function(b) sum(dbinom(y, 1, plogis(Xc %*% b), log = TRUE))
+```
+
+`grad_c`, `hess_c` and `ll_c` use `cold` in place of `x`.
+
+```{r sep-path}
+path_c <- newton_k(grad_c, hess_c, c(0, 0), maxit = 30)
+data.frame(b0 = path_c[, 1], b1 = path_c[, 2],
+           loglik = apply(path_c, 1, ll_c))[c(1:4, 31), ]
+```
+
+$\beta_1$ grows by 1 every step, and $\ell$ rises toward a limit it never reaches.
+
+## `glm()` under Separation
+
+```{r sep-glm}
+fit_c <- glm(y ~ cold, family = binomial)
+round(summary(fit_c)$coefficients[, 1:2], 2)
+fit_c$converged
+```
+
+- `glm()` reports convergence after `r fit_c$iter` steps, because the deviance stopped changing.
+- The signs of separation are a large coefficient and a standard error in the thousands.
+
+## Stopping Rules under Separation
+
+Three stopping rules, with $\epsilon = 10^{-8}$:
+
+```{r sep-rules, echo=FALSE}
+ll_path <- apply(path_c, 1, ll_c)
+g_path <- apply(path_c, 1, \(b) max(abs(grad_c(b))))
+step_path <- apply(abs(diff(path_c)), 1, max)
+first <- function(ok) if (any(ok)) which(ok)[1] else NA
+rule_steps <- c(objective = first(abs(diff(ll_path)) < 1e-8),
+                gradient = first(g_path[-1] < 1e-8),
+                step = first(step_path < 1e-8))
+```
+
+| Rule | Met after |
+|---|---|
+| $\ell$ stops changing, as in `glm()` | `r rule_steps["objective"]` steps |
+| gradient near $\bm 0$ | `r rule_steps["gradient"]` steps |
+| $\bm\beta$ stops moving | never |
+
+- The gradient goes to $\bm 0$ as $\beta_1 \to \infty$, so it is small at points far from any maximum.
+- Only the step size shows that the iterates have not converged.
+
+## Remedies for Separation
+
+Separation comes from the data and the model, so a better algorithm does not fix it.
+
+- Find the predictor that separates the data. The table of `cold` against `y` has a 0: no cold flight without distress.
+- Remove that predictor and refit.
+- Or keep it and penalize large coefficients, which gives the objective a finite maximum: **penalized regression**.
+
+# Summary
+
+## Summary
+
+- With $k$ parameters the gradient is a vector and the Hessian a matrix. A Newton step solves $\bm H \bm d = -\bm g$.
+- For logistic regression $\bm g = \bm X^T (\bm y - \bm p)$ and $\bm H = -\bm X^T \bm W \bm X$, and $\ell$ is concave.
+- Each Newton step is a weighted least squares fit of a working response. This is IWLS, and it is how `glm()` fits.
+- $(\bm X^T \bm W \bm X)^{-1}$ gives information standard errors. The sandwich does not assume the model.
+- Separated data have no MLE. The coefficients grow every step, and a rule that watches the objective or the gradient reports convergence anyway.
+- The remedies change the model: remove the separating predictor, or penalize large coefficients.

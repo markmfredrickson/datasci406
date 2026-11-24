@@ -1,0 +1,556 @@
+---
+title: "Root Finding and Newton's Method"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 4: Fit"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%")
+options(width = 60, digits = 4)
+set.seed(20261119)
+library(tidyverse)
+```
+
+# Overview
+
+## Modules 1 to 3
+
+Modules 1 to 3 used simulation to approximate integrals, probabilities and sampling distributions.
+
+- Module 1 sampled from distributions R provides.
+- Module 2 wrote samplers for distributions R does not provide.
+- Module 3 resampled the data.
+
+The estimates came from formulas or existing functions.
+
+## Module 4
+
+In this module we **fit** models: find the parameter that maximizes a likelihood or minimizes a loss.
+
+Statisticians optimize because many estimators are defined as the minimum of a loss. Data Scientists optimize to minimize prediction error.
+
+For each method we ask what it estimates and how uncertain the estimate is.
+
+- **Root finding** (today): bisection and Newton's method for one parameter.
+- Newton's method for many parameters, and how `glm()` fits a model.
+- Gradient descent and `optim`.
+- The EM algorithm.
+- Convex optimization and penalized regression.
+
+# Estimation as Optimization
+
+## M-Estimators
+
+Many estimators minimize an average loss:
+$$\hat\theta = \arg\min_\theta \frac{1}{n} \sum_{i=1}^n L(X_i, \theta).$$
+
+- **The mean:** squared loss, $L = (x - \theta)^2$.
+- **The median:** absolute loss, $L = |x - \theta|$. Other quantiles use pinball loss (module 3).
+- **The MLE:** $L = -\log f(x \mid \theta)$, so the minimum is the maximum of the log-likelihood.
+
+These are **M-estimators**. Choosing $L$ chooses the estimator. Computing $\hat\theta$ is an optimization problem.
+
+## Estimating Equations
+
+If $L$ is differentiable and the minimum is inside the parameter space, $\hat\theta$ solves the **estimating equation**
+$$\frac{1}{n} \sum_{i=1}^n L'(X_i, \theta) = 0, \qquad L' = \partial L / \partial \theta.$$
+
+- Mean: $-2(\bar X - \theta) = 0$, so $\hat\theta = \bar X$.
+- MLE: the **score equation** $\ell'(\theta) = 0$, where $\ell(\theta) = \sum_i \log f(X_i \mid \theta)$ is the log-likelihood.
+
+For most models there is no closed form. We need a $\theta$ with $g(\theta) = 0$: a **root** of $g$. ($g(\theta) = \sum L'(X_i, \theta)$)
+
+# Ozone Example
+
+## Ozone Data
+
+`airquality$Ozone`: mean ozone (ppb), 1 pm to 3 pm, Roosevelt Island, May to September 1973.
+
+```{r ozone, fig.height=1.7, fig.width=6}
+oz <- as.numeric(na.omit(airquality$Ozone))
+n <- length(oz)
+ggplot(data.frame(ozone = oz), aes(ozone)) +
+  geom_histogram(binwidth = 10, boundary = 0) + labs(y = NULL)
+```
+
+## Gamma Model
+
+Model the `r n` days as $X_i \iid \text{Gamma}(\alpha, \beta)$:
+$$f(x \mid \alpha, \beta) = \frac{\beta^\alpha}{\Gamma(\alpha)} x^{\alpha - 1} e^{-\beta x}, \quad x > 0.$$
+
+$$\ell(\alpha, \beta) = n \alpha \log \beta - n \log \Gamma(\alpha) + (\alpha - 1) \sum_{i=1}^n \log x_i - \beta \sum_{i=1}^n x_i.$$
+
+$\partial \ell / \partial \beta = n \alpha / \beta - \sum_i x_i = 0$ gives $\hat\beta = \alpha / \bar x$ for any $\alpha$.
+
+## Score Equation
+
+With the **digamma** function $\text{digamma}(\alpha) = \Gamma'(\alpha) / \Gamma(\alpha)$,
+$$\frac{\partial \ell}{\partial \alpha} = n \log \beta - n \, \text{digamma}(\alpha) + \sum_{i=1}^n \log x_i.$$
+
+Substitute $\beta = \alpha / \bar x$ and divide by $n$. Then $\hat\alpha$ solves $g(\alpha) = 0$, with
+$$g(\alpha) = \log \alpha - \text{digamma}(\alpha) - c, \qquad c = \log \bar x - \frac{1}{n} \sum_{i=1}^n \log x_i.$$
+
+There is no closed form. R provides `digamma` and its derivative, `trigamma`.
+
+## Function $g$
+
+```{r g-def}
+c0 <- log(mean(oz)) - mean(log(oz))
+g <- function(a) log(a) - digamma(a) - c0
+```
+
+```{r g-plot, echo=FALSE, fig.height=1.8, fig.width=6}
+ggplot() + geom_function(fun = g, xlim = c(0.3, 6)) +
+  geom_hline(yintercept = 0, lty = 2) + labs(x = "alpha", y = "g(alpha)")
+```
+
+- $\log \alpha - \text{digamma}(\alpha)$ decreases from $\infty$ to 0.
+- $c > 0$ by Jensen's inequality, so $g$ has exactly one root.
+
+## No Closed Form
+
+The mean has a **closed form**: $\hat\mu = \bar x$, a formula we evaluate once.
+
+$\hat\alpha$ does not. No rearrangement of $\log \alpha - \text{digamma}(\alpha) = c$ gives $\alpha = \cdots$.
+
+An **iterative method** builds a sequence $\alpha_0, \alpha_1, \alpha_2, \ldots$ that approaches $\hat\alpha$:
+
+1. Start from a guess $\alpha_0$.
+2. Use $\alpha_k$ and $g$ to compute a better $\alpha_{k+1}$.
+3. Stop when we have **converged**.
+
+## Converged
+
+We could use a few different rules for deciding when to stop:
+
+* $|g(\alpha_{k+1}) - g(\alpha_{k}) | \le \epsilon$: no guarantee near zero or $\hat \alpha$, depends on scale of $g$
+* $|g(\alpha_k) - 0| \le \epsilon$: $g$ close to zero but $\alpha_k$ possibly far from $\hat \alpha$, scale issues again
+* $|\alpha_{k+1} - \alpha_k| \le \epsilon$: units of $\alpha$, and implies $g$ is close to zero near the root
+
+Near the root, where $g(\hat\alpha) = 0$, a Taylor expansion shows
+$$g(\alpha_k) \approx g'(\hat\alpha)(\alpha_k - \hat\alpha) \quad \Rightarrow \quad |\alpha_k - \hat\alpha| \approx \frac{|g(\alpha_k)|}{|g'(\hat\alpha)|}.$$
+An $\alpha_k$ within $\epsilon$ of $\hat\alpha$ has $g(\alpha_k)$ within $|g'(\hat\alpha)|\epsilon$ of zero.
+
+## Counting Steps
+
+How fast do we find the solution? We will measure speed in **correct digits gained per step**.
+
+- The error is $e_k = |\alpha_k - \hat\alpha|$. If $e_k = 10^{-3}$, then $\alpha_k$ has 3 correct digits, so in general it has $-\log_{10} e_k$.
+- A step gains $\log_{10}(e_k / e_{k+1})$ digits.
+- **Linear:** $e_{k+1} \approx c\, e_k$ with $c < 1$. Every step gains $-\log_{10} c$ digits.
+- **Quadratic:** $e_{k+1} \approx C e_k^2$. Every step doubles the digits.
+- **Superlinear:** $e_{k+1} / e_k \to 0$. Each step gains more digits than the last.
+- **Sublinear:** $e_k \approx C / \sqrt{k}$, as in Monte Carlo. One more digit costs 100 times the steps.
+
+# Bracketed Methods
+
+## Bisection
+
+**Intermediate value theorem:** if $g$ is continuous on $[a, b]$ and $g(a)$, $g(b)$ have opposite signs, $g$ has a root in $(a, b)$.
+
+$[a, b]$ is a **bracket**. The sign of $g$ at the midpoint tells us which half holds a root.
+
+1. Start with a bracket $[a, b]$.
+2. Let $m = (a + b) / 2$.
+3. If $g(a)$ and $g(m)$ have opposite signs, set $b \leftarrow m$. Otherwise set $a \leftarrow m$.
+4. Repeat until $b - a$ is below a tolerance.
+
+## Bisection in R
+
+```{r bisect}
+bisect <- function(g, a, b, tol = 1e-8) {
+  stopifnot(g(a) * g(b) < 0)
+  steps <- 0
+  while (b - a > tol) {
+    m <- (a + b) / 2
+    if (g(a) * g(m) <= 0) b <- m else a <- m
+    steps <- steps + 1
+  }
+  c(root = (a + b) / 2, steps = steps)
+}
+bisect(g, 1, 20)
+```
+
+## Bisection Speed
+
+After $k$ steps the bracket has width $(b - a) / 2^k$, so a tolerance $\epsilon$ takes
+$$k = \left\lceil \log_2 \frac{b - a}{\epsilon} \right\rceil$$
+steps: `r ceiling(log2(19 / 1e-8))` for $[1, 20]$ and $\epsilon = 10^{-8}$.
+
+- Each step gains one binary digit, so a decimal digit costs about 3.3 steps.
+- Steps are logarithmic in $1/\epsilon$. Digits are linear in steps: **linear convergence**.
+- The number of steps does not depend on $g$.
+
+## Bracket Failures
+
+- **No sign change.** $g(x) = (x - 1)^2$ has a root at 1 but is never negative.
+- **Several roots.** The bracket decides which one bisection finds.
+- **A discontinuity.** $g(x) = 1/x$ changes sign on $[-1, 1]$ with no root. Bisection converges to 0.
+
+Finding a bracket can itself require a search.
+
+## `uniroot` and `optimize`
+
+- **`uniroot(f, interval)`**: Brent's method. Bisection, sped up by interpolation steps when they help.
+- **`optimize(f, interval)`**: golden section search, the same idea for a maximum. Used in the module 1 project.
+
+```{r r-provides}
+unlist(uniroot(g, c(1, 20), tol = 1e-10)[c("root", "iter")])
+lp <- function(a) sum(dgamma(oz, a, a / mean(oz), log = TRUE))
+optimize(lp, c(1, 20), maximum = TRUE)$maximum
+```
+
+# Newton's Method
+
+## Tangent Line
+
+Near $x_0$, a first order Taylor expansion approximates $g$ by its tangent line:
+$$g(x) \approx g(x_0) + g'(x_0)(x - x_0).$$
+Supposing the approximation is good then, $g(x) = 0 \Rightarrow g(x_0) + g'(x_0)(x - x_0) = 0$ and solve:
+$$x = x_0 - \frac{g(x_0)}{g'(x_0)}.$$
+
+Make $x_1 = x$ our next guess and continue. **Newton's method** (Newton-Raphson) repeats this step until it stops moving.
+
+The step size is $|g(x_0)| / |g'(x_0)|$, so a small step means $g(x_0)$ is near zero and $x_0$ is near the root.
+
+```{r dg, include=FALSE}
+dg <- function(a) 1 / a - trigamma(a)
+newton_step_plot <- function(x0, xlim) {
+  x1 <- x0 - g(x0) / dg(x0)
+  ggplot() + geom_function(fun = g, xlim = xlim) +
+    geom_hline(yintercept = 0, lty = 2) +
+    geom_function(fun = \(x) g(x0) + dg(x0) * (x - x0),
+                  xlim = c(x0, x1), color = "red", lty = 3) +
+    annotate("segment", x = x0, y = g(x0), xend = x1, yend = 0, color = "red",
+             arrow = arrow(length = unit(0.1, "inches"))) +
+    annotate("segment", x = x1, y = 0, xend = x1, yend = g(x1), color = "red",
+             arrow = arrow(length = unit(0.1, "inches"))) +
+    annotate("point", x = c(x0, x1), y = c(g(x0), g(x1)), color = "red", size = 2) +
+    labs(x = "alpha", y = "g(alpha)")
+}
+steps1 <- c(1, 1 - g(1) / dg(1))
+steps1[3] <- steps1[2] - g(steps1[2]) / dg(steps1[2])
+steps1[4] <- steps1[3] - g(steps1[3]) / dg(steps1[3])
+```
+
+## Newton in R
+
+The function returns every iterate, so we can watch it converge.
+
+```{r newton}
+newton <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    x[i + 1] <- x[i] - g(x[i]) / dg(x[i])
+    if (is.nan(x[i + 1]) || abs(x[i + 1] - x[i]) < tol) break
+  }
+  x
+}
+```
+
+For the gamma shape, $g'(\alpha) = 1/\alpha - \text{trigamma}(\alpha)$:
+
+```{r dg-show, eval=FALSE}
+dg <- function(a) 1 / a - trigamma(a)
+```
+
+## Newton Iterates
+
+We need to start from $\alpha_0$ (**initialize**), so use the method of moments estimate (which does have a closed form): $\alpha_0 = \bar x^2 / s^2$.
+
+```{r newton-oz}
+a0 <- mean(oz)^2 / var(oz)
+path <- newton(g, dg, a0)
+ahat <- path[length(path)]
+data.frame(alpha = path, error = abs(path - ahat))
+```
+
+## Newton Step 1
+
+From $\alpha_0 = 1$ to `r round(steps1[2], 3)`.
+
+```{r step1, echo=FALSE, fig.height=2.4, fig.width=6}
+newton_step_plot(steps1[1], c(0.9, 1.9))
+```
+
+## Newton Step 2
+
+From `r round(steps1[2], 3)` to `r round(steps1[3], 3)`.
+
+```{r step2, echo=FALSE, fig.height=2.4, fig.width=6}
+newton_step_plot(steps1[2], c(1.35, 1.8))
+```
+
+## Newton Step 3
+
+From `r round(steps1[3], 3)` to `r round(steps1[4], 4)`.
+
+```{r step3, echo=FALSE, fig.height=2.4, fig.width=6}
+newton_step_plot(steps1[3], c(1.62, 1.72))
+```
+
+## Quadratic Convergence
+
+Let $r$ be the root. A second order Taylor expansion around $x$ gives
+$$0 = g(r) \approx g(x) + g'(x)(r - x) + \tfrac{1}{2} g''(x)(r - x)^2.$$
+
+Divide by $g'(x)$ and rearrange. The next iterate $x_{\text{new}} = x - g(x)/g'(x)$ satisfies
+$$x_{\text{new}} - r \approx \frac{g''(x)}{2 g'(x)} (x - r)^2.$$
+
+- Each error is about a constant times the square of the last. This is **quadratic convergence**.
+- Squaring $10^{-d}$ gives $10^{-2d}$: the correct digits double each step.
+- Bisection took 31 steps. Newton took 4.
+
+## Newton for Likelihoods
+
+With $g = \ell'$ and $g' = \ell''$, Newton's method maximizes a likelihood:
+$$\theta \leftarrow \theta - \frac{\ell'(\theta)}{\ell''(\theta)}.$$
+
+For the gamma, let $\ell_p(\alpha) = \ell(\alpha, \alpha / \bar x)$, with $\beta$ at its best value for each $\alpha$:
+$$\ell_p'(\alpha) = n g(\alpha), \qquad \ell_p''(\alpha) = n g'(\alpha).$$
+
+$n$ cancels in the step, so the iterates above maximize $\ell_p$.
+
+# Huber Estimator
+
+## Huber Loss
+
+Ozone has a long right tail. The mean (`r round(mean(oz), 1)`) is pulled by it. The median (`r median(oz)`) ignores the size of every value.
+
+**Huber loss** is squared near $\theta$ and absolute beyond $k$:
+$$L(x, \theta) = \begin{cases} \frac{1}{2}(x - \theta)^2 & |x - \theta| \le k \\ k|x - \theta| - \frac{1}{2}k^2 & |x - \theta| > k \end{cases}$$
+
+```{r huber-plot, echo=FALSE, fig.height=1.3, fig.width=6}
+k <- 20
+huber <- \(r) ifelse(abs(r) <= k, r^2 / 2, k * abs(r) - k^2 / 2)
+ggplot() + geom_function(aes(color = "Huber, k = 20"), fun = huber, xlim = c(-60, 60)) +
+  geom_function(aes(color = "squared / 2"), fun = \(r) r^2 / 2, xlim = c(-60, 60)) +
+  labs(x = "x - theta", y = "loss", color = NULL)
+```
+
+## Newton for Huber
+
+$-L'$ is the residual clipped to $[-k, k]$. $L''$ is 1 inside the band and 0 outside:
+$$g(\theta) = \sum_{i=1}^n \text{clip}_k(X_i - \theta), \qquad g'(\theta) = -\#\{i : |X_i - \theta| \le k\}.$$
+
+```{r huber-newton}
+k <- 20
+g_hub <- function(t) sum(pmin(pmax(oz - t, -k), k))
+dg_hub <- function(t) -sum(abs(oz - t) <= k)
+path_hub <- newton(g_hub, dg_hub, median(oz))
+that <- path_hub[length(path_hub)]
+path_hub
+```
+
+$g$ is piecewise linear, so the Taylor approximation is exact once the set of points inside the band stops changing (can stop with correct answer).
+
+# Standard Errors
+
+## Uncertainty
+
+$\hat\theta$ depends on the sample, so it has a sampling distribution (we'd solve a different optimization problem in each sample). Its SD is the **standard error**.
+
+For large $n$, M-estimators are approximately normal. A 95% interval is $\hat\theta \pm 1.96\, \text{SE}$.
+
+For an MLE, if the model is true,
+$$\hat\theta \approx N\left(\theta, \frac{1}{n I(\theta)}\right), \qquad I(\theta) = -\E{\frac{\partial^2}{\partial \theta^2} \log f(X \mid \theta)},$$
+the **Fisher information** in one observation.
+
+## SE Estimation
+
+Depending on what we assume, we can estimate standard errors using three different techniques:
+
+- **Information:** from the curvature of the log-likelihood. MLEs only, and it assumes the model.
+- **Sandwich:** from the loss and the data. Any M-estimator.
+- **Bootstrap:** resample the data and refit (module 3).
+
+## Curvature and Information
+
+Near the maximum, a second order Taylor expansion gives
+$$\ell(\theta) \approx \ell(\hat\theta) - \tfrac{1}{2} J (\theta - \hat\theta)^2, \qquad J = -\ell''(\hat\theta).$$
+
+```{r curvature, echo=FALSE, fig.height=1.6, fig.width=6}
+lp_rel <- function(x) {
+  cx <- log(mean(x)) - mean(log(x))
+  ah <- uniroot(\(a) log(a) - digamma(a) - cx, c(0.1, 100))$root
+  lp <- \(a) sapply(a, \(ai) sum(dgamma(x, ai, ai / mean(x), log = TRUE)))
+  \(a) lp(a) - lp(ah)
+}
+sub <- oz[seq(1, n, by = 4)]
+ggplot() +
+  geom_function(aes(color = "all 116 days"), fun = lp_rel(oz), xlim = c(1, 2.8)) +
+  geom_function(aes(color = "every 4th day"), fun = lp_rel(sub), xlim = c(1, 2.8)) +
+  coord_cartesian(ylim = c(-6, 0)) +
+  labs(x = "alpha", y = "log-lik. minus max", color = NULL)
+```
+
+- $J$ is the **observed information**: how sharply the log-likelihood peaks.
+- A sharp peak pins $\theta$ down. A flat one does not.
+- Each observation adds curvature, so $J$ grows like $n$.
+
+## Information SE
+
+The expansion is the log of a normal density with mean $\hat\theta$ and variance $1/J$. For large $n$,
+$$\text{SE}(\hat\theta) \approx \frac{1}{\sqrt{J}} = \frac{1}{\sqrt{-\ell''(\hat\theta)}}.$$
+
+Newton computes $\ell''$ at every step. For the gamma, $\ell_p''(\alpha) = n g'(\alpha)$, since $g$ is $\ell_p'$ divided by $n$.
+
+```{r se-info}
+J <- -n * dg(ahat)
+se_info <- 1 / sqrt(J)
+se_info
+```
+
+Using $\ell_p$ gives the SE of $\hat\alpha$ in the two-parameter model.
+
+## Bootstrap SE
+
+The bootstrap from module 3 needs no second derivative.
+
+```{r se}
+boot_a <- replicate(2000, {
+  y <- sample(oz, replace = TRUE)
+  cy <- log(mean(y)) - mean(log(y))
+  uniroot(\(a) log(a) - digamma(a) - cy, c(0.1, 100))$root
+})
+c(information = se_info, bootstrap = sd(boot_a))
+```
+
+The two disagree by 10%. The information assumes the gamma -- maybe we should question that assumption.
+
+## Sandwich SE
+
+An M-estimator $\hat\theta$ is always estimating expected loss. For IID samples and a loss function $L$ we can show that:
+
+$$\text{SE}(\hat\theta) \approx \frac{1}{\sqrt{n}} \frac{\sqrt{B}}{A}, \qquad A = \E{L''(X, \theta)}, \quad B = \E{L'(X, \theta)^2}.$$
+
+- $A$ is the curvature of the expected loss, as in the information.
+- $B$ is the spread of the slopes $L'(X_i, \theta)$.
+- Estimate both by averages at $\hat\theta$.
+- If the model is true, $A = B$ and the sandwich is the information formula.
+
+## Huber SE
+
+```{r huber-se}
+A <- mean(abs(oz - that) <= k)
+B <- mean(pmin(pmax(oz - that, -k), k)^2)
+boot_h <- replicate(2000, {
+  y <- sample(oz, replace = TRUE)
+  uniroot(\(t) sum(pmin(pmax(y - t, -k), k)), range(y))$root
+})
+c(sandwich = sqrt(B) / (A * sqrt(n)), bootstrap = sd(boot_h))
+```
+
+The sandwich and the bootstrap agree.
+
+## Gamma Sandwich SE
+
+Sandwich variance estimation works for vectors as well, just using matrices $A$ and $B$.
+
+```{r sandwich}
+bhat <- ahat / mean(oz)
+phi <- cbind(oz - ahat / bhat, log(oz) - digamma(ahat) + log(bhat))
+A2 <- matrix(c(1 / bhat, trigamma(ahat), -ahat / bhat^2, -1 / bhat), 2)
+B2 <- crossprod(phi) / n
+V <- solve(A2) %*% B2 %*% t(solve(A2)) / n
+round(sqrt(V[1, 1]), 3)
+```
+
+# Newton Failures
+
+## Parameter Space
+
+The gamma shape must be positive: $\alpha > 0$ is the **parameter space**.
+
+Bisection stays inside, since every midpoint is in the bracket.
+
+Newton has no such guard:
+
+1. The Newton step is $-g(\alpha_k) / g'(\alpha_k)$. A small $g'$ makes a big step.
+2. $g$ is nearly flat for large $\alpha$, so a start far to the right takes a big step left.
+3. If the step passes 0, $\log \alpha$ is undefined and every later iterate is `NaN`.
+
+## First Newton Step
+
+```{r threshold, include=FALSE}
+a_bad <- uniroot(\(a) a - g(a) / dg(a), c(ahat, 10))$root
+```
+
+```{r newton-fail, warning=FALSE}
+newton(g, dg, 4)
+```
+
+Tangents from three starts. The further right the start, the further left the step lands.
+
+```{r first-step, echo=FALSE, fig.height=1.7, fig.width=6}
+tan_df <- data.frame(x0 = c(2.5, a_bad, 4))
+tan_df$x1 <- tan_df$x0 - g(tan_df$x0) / dg(tan_df$x0)
+tan_df$col <- c("steelblue", "black", "red")
+ggplot() +
+  annotate("rect", xmin = -Inf, xmax = 0, ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.15) +
+  annotate("text", x = -1, y = 0.3, label = "alpha < 0", color = "red3", size = 3.5) +
+  geom_function(fun = g, xlim = c(0.75, 6)) +
+  geom_hline(yintercept = 0, lty = 2) +
+  annotate("segment", x = tan_df$x1, xend = tan_df$x0, y = 0, yend = g(tan_df$x0),
+           color = tan_df$col) +
+  annotate("point", x = c(tan_df$x0, tan_df$x1), y = c(g(tan_df$x0), rep(0, 3)),
+           color = rep(tan_df$col, 2), size = 2) +
+  annotate("text", x = tan_df$x0, y = g(tan_df$x0), label = round(tan_df$x0, 2),
+           color = tan_df$col, vjust = 1.8) +
+  coord_cartesian(xlim = c(-2, 6), ylim = c(-0.3, 0.45)) +
+  labs(x = "alpha", y = "g(alpha)")
+```
+
+Every start past `r round(a_bad, 2)`, about twice $\hat\alpha = `r round(ahat, 2)`$, lands below 0.
+
+## Step Halving
+
+Keep Newton's direction. Halve the step until the new point is in the parameter space and $|g|$ is smaller.
+
+```{r newton-halve}
+newton_halve <- function(g, dg, x0, tol = 1e-10, maxit = 50) {
+  x <- x0
+  for (i in 1:maxit) {
+    step <- -g(x[i]) / dg(x[i])
+    while (x[i] + step <= 0 || abs(g(x[i] + step)) > abs(g(x[i])))
+      step <- step / 2
+    x[i + 1] <- x[i] + step
+    if (abs(step) < tol) break
+  }
+  x
+}
+```
+
+## Halving from $\alpha_0 = 4$
+
+```{r newton-halve-run}
+newton_halve(g, dg, 4)
+```
+
+- The first full step would land at a negative $\alpha$, so it is halved.
+- Near the root the full step is accepted, so convergence is still quadratic.
+
+## Other Fixes
+
+- **Trust region:** cap the step length, and shrink the cap after a bad step.
+- **Change the parameter:** run Newton on $\tau = \log \alpha$. Any real $\tau$ gives a positive $\alpha$.
+
+# Summary
+
+## Summary
+
+- An M-estimator minimizes an average loss. Setting the derivative to zero makes fitting root finding.
+- With no closed form, an iterative method improves a guess one step at a time.
+- Bisection needs a bracket and gains one binary digit per step.
+- `uniroot` and `optimize` keep a bracket and add faster steps.
+- Newton needs $g'$ and doubles the correct digits per step, but a poor start can leave the parameter space.
+- Controlling the step size keeps Newton in the parameter space.
+- The information gives an SE if the model is true. The sandwich gives one for any M-estimator.

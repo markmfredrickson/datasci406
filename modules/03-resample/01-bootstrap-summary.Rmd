@@ -1,0 +1,89 @@
+---
+title: "The Bootstrap: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample, Session 1"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+set.seed(20261027)
+
+mdeq <- read.csv("../../data/flint_mdeq.csv")
+x <- mdeq$lead
+x_excl <- x[!mdeq$excluded]
+p90 <- function(z) quantile(z, 0.9, names = FALSE)
+B <- 4000
+boot_all <- replicate(B, p90(sample(x, replace = TRUE)))
+boot_excl <- replicate(B, p90(sample(x_excl, replace = TRUE)))
+three_cis <- function(t, boot) {
+  q <- quantile(boot, c(0.025, 0.975), names = FALSE)
+  rbind(normal = t + c(-1, 1) * qnorm(0.975) * sd(boot),
+        basic = 2 * t - rev(q), percentile = q)
+}
+ci_all <- three_cis(p90(x), boot_all)
+ci_excl <- three_cis(p90(x_excl), boot_excl)
+ci <- function(m, k) sprintf("[%.1f, %.1f]", round(m[k, 1], 1) + 0, round(m[k, 2], 1))
+```
+
+## Sampling from $\hat F$
+
+We need the sampling distribution of $T = T(X_1, \ldots, X_n)$, $X_i \iid F$, and $F$ is unknown.
+
+- Replace $F$ with the **empirical CDF**, $\hat F(t) = \frac{1}{n} \sum_i \ind(X_i \le t)$, which puts mass $1/n$ on each observation.
+- Inverting $\hat F$ at $U \sim U(0, 1)$ picks one observation uniformly at random, so $n$ draws from $\hat F$ is `sample(x, replace = TRUE)`.
+
+**The bootstrap.** For $b = 1, \ldots, B$, draw a bootstrap sample $X_1^*, \ldots, X_n^*$ and compute $T_b^*$. The SD of $T_1^*, \ldots, T_B^*$ is the **bootstrap SE**.
+
+- We draw $B$ of the $n^n$ possible bootstrap samples. Larger $B$ reduces Monte Carlo error, but not the error from using $\hat F$ for $F$.
+- Check on $\bar X$ first: its bootstrap SE should be close to $s / \sqrt n$.
+
+## Three intervals
+
+With $T^*_p$ the $p$ quantile of the bootstrap distribution:
+
+| interval | formula | idea |
+|---|---|---|
+| normal | $T \pm z_{1 - \alpha/2} \, \widehat{\text{SE}}$ | $T$ is approximately normal |
+| basic | $[2T - T^*_{1 - \alpha/2}, \; 2T - T^*_{\alpha/2}]$ | $T^* - T$ behaves like $T - \theta$ |
+| percentile | $[T^*_{\alpha/2}, \; T^*_{1 - \alpha/2}]$ | $g(T) - g(\theta)$ is symmetric for some increasing $g$ |
+
+- The basic and percentile intervals are reflections of each other about $T$. They agree when the bootstrap distribution is symmetric about $T$.
+- Better intervals exist. The bootstrap-$t$ comes on day 2, with the jackknife.
+
+## Flint: the 90th percentile
+
+The Lead and Copper Rule compares the 90th percentile with 15 ppb. It has no simple SE formula.
+
+| MDEQ samples | $T$ | SE | normal | basic | percentile |
+|---|:-:|:-:|:-:|:-:|:-:|
+| all `r length(x)` | `r p90(x)` | `r sprintf("%.1f", sd(boot_all))` | `r ci(ci_all, "normal")` | `r ci(ci_all, "basic")` | `r ci(ci_all, "percentile")` |
+| `r length(x_excl)`, without two | `r p90(x_excl)` | `r sprintf("%.1f", sd(boot_excl))` | `r ci(ci_excl, "normal")` | `r ci(ci_excl, "basic")` | `r ci(ci_excl, "percentile")` |
+
+- Excluding two samples moves $T$ by about one SE. Every interval contains 15.
+- Without them the bootstrap distribution is skewed, and the intervals disagree.
+- The bootstrap treats the homes as a random sample. It cannot detect how they were chosen.
+
+## Paired data
+
+Virginia Tech took two bottles from each home: the first draw, and one after 2 minutes of flushing.
+
+- $\hat F$ puts mass $1/n$ on each **pair**, so resample **rows**: `i <- sample(n, replace = TRUE)`, then use `x[i]` and `y[i]`.
+- Resampling each column separately draws $X^*$ and $Y^*$ independently. The bootstrap correlations center on zero, and the SE of the mean difference of logs grows from 0.07 to 0.12.
+
+## Failure case: the sample maximum
+
+$X_1, \ldots, X_n \iid U(0, \theta)$ and $T = X_{(n)}$. A bootstrap sample can only return observed values, so
+$$P(X^*_{(n)} = x_{(n)}) = 1 - \left(1 - \frac{1}{n}\right)^n \to 1 - e^{-1} \approx 0.632,$$
+while the true distribution of $X_{(n)}$ is continuous.
+
+- $T^* \le x_{(n)} < \theta$, so the percentile interval **never** covers $\theta$. The basic and normal intervals undercover too.
+- The bootstrap needs a small change in $F$ to make a small change in $T$: smooth functions of means work, quantiles roughly, the max and min not at all.
+- A spike at $T$ in the bootstrap distribution is a warning sign.

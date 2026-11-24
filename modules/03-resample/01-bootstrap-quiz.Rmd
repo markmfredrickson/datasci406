@@ -1,0 +1,69 @@
+---
+pagetitle: "Quiz 3.1: The Bootstrap"
+output:
+  pdf_document: default
+geometry: "margin=0.75in, top=0.6in, bottom=0.6in"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+**DATASCI 406 FA 26, Quiz 3.1**
+
+\vspace{0.3em}
+\noindent
+\begin{tabular*}{\textwidth}{|@{\extracolsep{\fill}}p{0.40\textwidth}|p{0.22\textwidth}|p{0.22\textwidth}|}
+\hline
+\small Name & \small Uniqname & \small UMID \\[3.6em]
+\hline
+\end{tabular*}
+\vspace{0.3em}
+
+Each question is worth 1 point. Circle one answer for each.
+
+## Question 1 (1 point)
+
+A bootstrap SE for a sample of $n = 30$ observations is computed from
+$B = 1000$ bootstrap samples. What changes if $B$ is raised to $100{,}000$?
+
+1. The bootstrap SE converges to the true SE of $T$.
+1. Both the Monte Carlo error and the error from using $\hat F$ in place of
+   $F$ shrink.
+1. The Monte Carlo error shrinks, but the error from using $\hat F$ in place
+   of $F$ does not.
+1. Nothing, because every one of the $30^{30}$ possible bootstrap samples
+   is already drawn.
+
+## Question 2 (1 point)
+
+When would you use a basic or percentile interval instead of the normal
+interval, $T \pm z_{1 - \alpha/2} \, \widehat{\text{SE}}$?
+
+1. When the bootstrap distribution of $T^*$ is skewed.
+1. When $B$ is small, because quantiles need fewer bootstrap samples than an
+   SE.
+1. When $T$ is the mean of a large sample.
+1. When the bootstrap SE is large.
+
+## Question 3 (1 point)
+
+Each of `n` homes has a first-draw lead level `x[k]` and a level after
+flushing `y[k]`. Which code computes one bootstrap replicate of the mean
+difference of logs?
+
+1. `mean(log(sample(x, replace = TRUE)) - log(sample(y, replace = TRUE)))`
+1. `i <- sample(n); mean(log(x[i]) - log(y[i]))`
+1. `i <- sample(n, replace = TRUE); mean(log(x[i])) - mean(log(y))`
+1. `i <- sample(n, replace = TRUE); mean(log(x[i]) - log(y[i]))`
+
+## Question 4 (1 point)
+
+For which of these statistics would the bootstrap **not** give a good
+estimate of the sampling distribution?
+
+1. The sample correlation.
+1. The sample maximum.
+1. The sample median.
+1. The mean difference of paired observations.
+

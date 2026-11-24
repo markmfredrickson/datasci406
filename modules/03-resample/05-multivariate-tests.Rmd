@@ -1,0 +1,558 @@
+---
+title: "Permutation Tests for Vectors, Networks and Tables"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%", cache = TRUE, autodep = TRUE)
+options(width = 60, digits = 4)
+set.seed(20261110)
+library(tidyverse)
+B <- 999
+pval <- function(t_null, t_obs) (1 + sum(t_null >= t_obs)) / (length(t_null) + 1)
+```
+
+## Review: the permutation recipe
+
+From deck 4:
+
+1. **$H_0$**: some rearrangement leaves the distribution of the data unchanged.
+2. **Condition on** what $H_0$ says nothing about.
+3. **Rearrange** the rest. Every rearrangement is equally likely under $H_0$.
+4. **Compute $T$** on each rearrangement and count.
+
+Deck 4 used single numbers. This deck: vectors, networks and tables.
+
+## Two null hypotheses for multivariate data
+
+**Equal distributions.** $X_1, \ldots, X_m \iid F$ and $Y_1, \ldots, Y_n \iid G$, each in $\mathbb{R}^p$.
+$$H_0: F = G.$$
+Shuffle the group labels, as in deck 4.
+
+**Independence.** Pairs $(X_i, Y_i)$, $i = 1, \ldots, n$, iid.
+$$H_0: F_{XY}(x, y) = F_X(x) F_Y(y).$$
+Shuffle the $Y_i$ against the $X_i$.
+
+Vectors have no single ordering, so the statistics are built from **pairs of observations**.
+
+# Statistics Built from Pairs
+
+## Pairwise statistics
+
+$$T = \sum_{i=1}^n \sum_{j=1}^n A_{ij} B_{ij}, \qquad A, B \text{ are } n \times n.$$
+
+- $A_{ij}$: distance between $i$ and $j$, or a network tie.
+- $B_{ij}$: same label, or a distance in a second variable.
+
+This is the **Mantel statistic**. Every test in this deck has this form.
+
+## Relabeling observations in a pairwise statistic
+
+A permutation $\pi$ of the observations moves row $i$ **and** column $i$ of $B$ together:
+$$T^* = \sum_{i, j} A_{ij} B_{\pi(i) \pi(j)}.$$
+
+```{r mantel-def}
+mantel <- function(A, B) sum(A * B)
+mantel_null <- function(A, B, reps) {
+  n <- nrow(A)
+  replicate(reps, {
+    p <- sample(n)
+    mantel(A, B[p, p])
+  })
+}
+```
+
+# Two Samples of Vectors
+
+## Margins and joint distributions
+
+$F = G$ means equal **joint** distributions, not equal margins.
+
+Example: $N(0, 1)$ margins, correlation $0.7$ for $X$ and $-0.7$ for $Y$.
+
+```{r sim-two, echo=FALSE, fig.height=2.2, fig.width=6}
+sim_pair <- function(n, rho) {
+  z1 <- rnorm(n)
+  z2 <- rho * z1 + sqrt(1 - rho^2) * rnorm(n)
+  cbind(z1, z2)
+}
+m <- 50
+X <- sim_pair(m, 0.7)
+Y <- sim_pair(m, -0.7)
+sim <- rbind(X, Y)
+g_sim <- rep(c(TRUE, FALSE), c(m, m))
+ggplot(data.frame(x1 = sim[, 1], x2 = sim[, 2], sample = ifelse(g_sim, "X", "Y")),
+       aes(x1, x2, shape = sample)) +
+  geom_point() + scale_shape_manual(values = c(16, 1)) +
+  coord_fixed()
+```
+
+## Kolmogorov-Smirnov tests on each coordinate
+
+```{r sim-ks}
+c(coordinate_1 = ks.test(X[, 1], Y[, 1])$p.value,
+  coordinate_2 = ks.test(X[, 2], Y[, 2])$p.value)
+```
+
+Every margin is $N(0, 1)$, so coordinate-wise tests have no power here for any $m$.
+
+## Energy distance
+
+Euclidean distance between $x, y \in \mathbb{R}^d$:
+$$\|x - y\| = \sqrt{\sum_{k=1}^d (x_k - y_k)^2}.$$
+
+For $X, X' \iid F$ and $Y, Y' \iid G$, independent, with finite means,
+$$\mathcal{E}(F, G) = 2 \E{\|X - Y\|} - \E{\|X - X'\|} - \E{\|Y - Y'\|}.$$
+
+- $\mathcal{E}(F, G) \ge 0$, and $\mathcal{E}(F, G) = 0$ only when $F = G$.
+- Mixed samples: distances between groups match distances within, so $\mathcal{E} \approx 0$.
+
+## Energy distance from a sample
+
+Replace each expectation with an average over the pooled distance matrix $D_{ij} = \|Z_i - Z_j\|$:
+$$\hat{\mathcal{E}} = \frac{2}{mn} \sum_{X, Y} D_{ij} - \frac{1}{m^2} \sum_{X, X} D_{ij} - \frac{1}{n^2} \sum_{Y, Y} D_{ij}.$$
+
+Reject for large values. Scaling by $mn/(m + n)$ does not change the $p$-value.
+
+## Energy statistic in R
+
+Compute `dist()` once. A shuffle changes only which entries are averaged.
+
+```{r energy-def}
+energy <- function(D, g) {
+  2 * mean(D[g, !g]) - mean(D[g, g]) - mean(D[!g, !g])
+}
+D_sim <- as.matrix(dist(sim))
+e_obs <- energy(D_sim, g_sim)
+e_null <- replicate(B, energy(D_sim, sample(g_sim)))
+c(observed = e_obs, p = pval(e_null, e_obs))
+```
+
+Rejects where the coordinate-wise KS tests did not.
+
+## Energy statistic as a pairwise statistic
+
+With weights $L_{ij} = 1/m^2$ within $X$, $1/n^2$ within $Y$, and $-1/(mn)$ between,
+$$\hat{\mathcal{E}} = -\sum_{i, j} D_{ij} L_{ij}.$$
+
+So $A = D$ and $B = -L$.
+
+```{r energy-mantel}
+nx <- sum(g_sim); ny <- sum(!g_sim)
+L <- outer(g_sim, g_sim, function(a, b)
+  ifelse(a & b, 1 / nx^2, ifelse(!a & !b, 1 / ny^2, -1 / (nx * ny))))
+c(energy = energy(D_sim, g_sim), mantel = mantel(D_sim, -L))
+```
+
+## Nearest-neighbor statistic
+
+$N(i)$ is the closest other point to $i$ in the pooled sample.
+$$T_{NN} = \sum_{i=1}^{m + n} \ind\{g_i = g_{N(i)}\}.$$
+
+- Under $F \neq G$, points cluster with their own sample and $T_{NN}$ is large.
+- **One-sided**: a small $T_{NN}$ (more mixed than chance) is not evidence against $H_0$.
+- Variant: count same-label neighbors among the $r$ nearest.
+
+As a pairwise statistic: $A_{ij} = 1$ if $j = N(i)$, and $B_{ij} = 1$ if $g_i = g_j$.
+
+## Nearest-neighbor test in R
+
+Neighbors do not depend on the labels, so find them once.
+
+```{r nn-def}
+nearest <- function(D) { diag(D) <- Inf; apply(D, 1, which.min) }
+t_nn <- function(nn, g) sum(g == g[nn])
+nn_sim <- nearest(D_sim)
+nn_obs <- t_nn(nn_sim, g_sim)
+nn_null <- replicate(B, t_nn(nn_sim, sample(g_sim)))
+c(observed = nn_obs, null_mean = mean(nn_null), p = pval(nn_null, nn_obs))
+```
+
+## Example: earthquakes near Fiji
+
+`quakes` (shipped with R): `r nrow(quakes)` earthquakes near Fiji since 1964, magnitude 4 or more.
+
+**$H_0$**: locations (latitude, longitude, depth) of magnitude 5+ earthquakes have the same distribution as the rest.
+
+```{r quakes-two, echo=FALSE, fig.height=2.1, fig.width=6}
+q <- quakes
+g_q <- q$mag >= 5
+q$magnitude <- ifelse(g_q, "5 or more", "under 5")
+ggplot(q, aes(long, lat, color = depth, shape = magnitude)) +
+  geom_point(size = 0.8) +
+  scale_shape_manual(values = c(17, 1)) +
+  scale_color_viridis_c() +
+  labs(x = "longitude", y = "latitude")
+```
+
+## Choosing units for the distance
+
+Latitude and longitude are in degrees, depth in kilometers.
+
+```{r quakes-units}
+sapply(q[, c("lat", "long", "depth")], sd)
+```
+
+- Raw scale: the distance is almost entirely depth.
+- `scale()`: each coordinate in SDs, weighted equally.
+
+Neither is correct. The units set each coordinate's weight in the distance.
+
+## Energy and nearest-neighbor tests on the earthquake data
+
+```{r quakes-tests}
+D_q <- as.matrix(dist(scale(q[, c("lat", "long", "depth")])))
+e_obs <- energy(D_q, g_q)
+e_null <- replicate(B, energy(D_q, sample(g_q)))
+nn_q <- nearest(D_q)
+nn_obs <- t_nn(nn_q, g_q)
+nn_null <- replicate(B, t_nn(nn_q, sample(g_q)))
+c(energy = pval(e_null, e_obs), nearest_neighbor = pval(nn_null, nn_obs))
+```
+
+Same shuffles. Energy uses every distance, nearest neighbor one per point, and it has less power here.
+
+## Networks as adjacency matrices
+
+**Adjacency matrix**: $A_{ij} = 1$ if nodes $i$ and $j$ are linked. The nearest-neighbor graph was one.
+
+- Are two networks on the same nodes related? $A$, $B$ both adjacency matrices.
+- Is a node attribute related to the network? $B_{ij}$ compares $i$ and $j$.
+
+**QAP** (quadratic assignment procedure): under $H_0$, relabel the nodes of one matrix.
+
+## Example: Florentine families
+
+```{r flo-data, include=FALSE}
+fam <- read.csv("../../data/florentine_families.csv")
+ties <- read.csv("../../data/florentine_ties.csv")
+k <- nrow(fam)
+adjacency <- function(rel) {
+  A <- matrix(0, k, k, dimnames = list(fam$family, fam$family))
+  s <- ties[ties$relation == rel, ]
+  A[cbind(s$family1, s$family2)] <- 1
+  A + t(A)
+}
+marriage <- adjacency("marriage")
+business <- adjacency("business")
+```
+
+Marriage and business ties among `r k` leading Florentine families around 1430 (Padgett).
+
+```{r flo-plot, echo=FALSE, fig.height=2.4, fig.width=6}
+ang <- 2 * pi * (seq_len(k) - 1) / k
+pos <- data.frame(family = fam$family, x = cos(ang), y = sin(ang))
+edges <- ties %>%
+  left_join(pos, by = c(family1 = "family")) %>%
+  left_join(pos, by = c(family2 = "family"), suffix = c("", "end"))
+ggplot() +
+  geom_segment(data = edges, aes(x, y, xend = xend, yend = yend)) +
+  geom_point(data = pos, aes(x, y)) +
+  geom_text(data = pos, aes(1.25 * x, 1.12 * y, label = family), size = 2) +
+  facet_wrap(~ relation) +
+  coord_fixed(xlim = c(-1.5, 1.5)) +
+  theme_void()
+```
+
+## Testing association between two networks
+
+**$H_0$**: the marriage and business networks are unrelated.
+
+$T$: pairs tied by both, $\frac{1}{2} \sum_{i, j} M_{ij} B_{ij}$.
+
+```{r flo-qap}
+t_obs <- mantel(marriage, business) / 2
+t_null <- mantel_null(marriage, business, B) / 2
+c(observed = t_obs, null_mean = mean(t_null), p = pval(t_null, t_obs))
+```
+
+`r t_obs` shared pairs, against `r round(mean(t_null), 1)` expected.
+
+## Testing a node attribute against the marriage network
+
+**$H_0$**: wealth in 1427 is unrelated to marriage. Relabel wealth among families.
+
+$T$: the average wealth gap across marriages. $B_{ij} = |w_i - w_j|$.
+
+```{r flo-wealth}
+W <- abs(outer(fam$wealth, fam$wealth, "-"))
+gap <- function(W) mantel(marriage, W) / sum(marriage)
+g_obs <- gap(W)
+g_null <- replicate(B, { p <- sample(k); gap(W[p, p]) })
+c(observed = g_obs, null_mean = mean(g_null),
+  p_two_sided = 2 * min(pval(g_null, g_obs), pval(-g_null, -g_obs)))
+```
+
+Marriages joined families further apart in wealth than chance.
+
+## Summary: two samples of vectors
+
+- Equal margins do not imply $F = G$.
+- Energy uses every pairwise distance and is 0 only when $F = G$.
+- Nearest neighbor counts same-label neighbors and is one-sided.
+- Shuffles do not change distances, so compute them once.
+- The units set each coordinate's weight in the distance.
+
+# Independence
+
+## Testing independence by shuffling the pairing
+
+**$H_0$**: $X$ and $Y$ are independent, with $(X_i, Y_i)$ iid.
+
+- **Condition on**: the $X$ values and the $Y$ values.
+- **Rearrange**: the pairing. Every matching of $Y$s to $X$s is equally likely, $n!$ in all.
+- **$T$**: any measure of dependence.
+
+The Florentine tests were of this kind.
+
+## Pearson correlation and nonlinear dependence
+
+```{r pearson-fail}
+x <- runif(200, -1, 1)
+y <- x^2 + rnorm(200, sd = 0.1)
+r_null <- replicate(B, cor(x, sample(y)))
+c(r = cor(x, y), p = pval(abs(r_null), abs(cor(x, y))))
+```
+
+```{r pearson-fail-plot, echo=FALSE, fig.height=1, fig.width=6}
+ggplot(data.frame(x, y), aes(x, y)) + geom_point(size = 0.5)
+```
+
+$Y$ is nearly a function of $X$, but $r$ is near 0 because the relationship is not linear.
+
+## Distance covariance
+
+Distance matrices $a_{ij} = |X_i - X_j|$ and $b_{ij} = |Y_i - Y_j|$, each **double-centered**:
+$$\tilde a_{ij} = a_{ij} - \bar a_{i \cdot} - \bar a_{\cdot j} + \bar a_{\cdot \cdot}.$$
+
+Squared sample distance covariance, a pairwise statistic:
+$$\text{dCov}_n^2(X, Y) = \frac{1}{n^2} \sum_{i, j} \tilde a_{ij} \tilde b_{ij}.$$
+
+- The population version is 0 **only** under independence (finite means).
+- For vectors, use $\|X_i - X_j\|$.
+
+## Distance correlation
+
+Scale by the distance variances, $\text{dVar}_n^2(X) = \text{dCov}_n^2(X, X)$:
+$$\text{dCor}_n^2(X, Y) = \frac{\text{dCov}_n^2(X, Y)}{\sqrt{\text{dVar}_n^2(X) \, \text{dVar}_n^2(Y)}}.$$
+
+- $0 \le \text{dCor} \le 1$, and dCor $= 0$ only under independence.
+- The sample dCor is positive even under independence. Compare it with its permutation null.
+
+## Distance correlation in R
+
+Centering $b[\pi, \pi]$ gives $\tilde b[\pi, \pi]$, so center once, then permute.
+
+```{r dcor-def}
+center <- function(D) D - outer(rowMeans(D), colMeans(D), "+") + mean(D)
+dcor <- function(A, B) sqrt(mean(A * B) / sqrt(mean(A^2) * mean(B^2)))
+A <- center(as.matrix(dist(x)))
+Bc <- center(as.matrix(dist(y)))
+d_obs <- dcor(A, Bc)
+d_null <- replicate(B, { p <- sample(length(y)); dcor(A, Bc[p, p]) })
+c(dcor = d_obs, max_null = max(d_null), p = pval(d_null, d_obs))
+```
+
+## Example: earthquake depth and longitude
+
+```{r quakes-dep-plot, echo=FALSE, fig.height=2.4, fig.width=6}
+ggplot(q, aes(long, depth)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_y_reverse() +
+  labs(x = "longitude", y = "depth (km)")
+```
+
+West of 175°: mostly shallow. East: depth decreases with longitude, along the plate sinking under Tonga.
+
+## Pearson and distance correlation on the earthquake data
+
+```{r quakes-dcor}
+A_q <- center(as.matrix(dist(q$long)))
+B_q <- center(as.matrix(dist(q$depth)))
+d_obs <- dcor(A_q, B_q)
+d_null <- replicate(B, { p <- sample(nrow(q)); dcor(A_q, B_q[p, p]) })
+east <- q$long > 175
+c(r = cor(q$long, q$depth), r_east = cor(q$long[east], q$depth[east]),
+  dcor = d_obs, max_null = max(d_null))
+```
+
+With `r nrow(q)` points both reject, but $r$ is small because the two regions slope in opposite directions.
+
+# Tables
+
+## Two binary variables as a permutation test
+
+$W_i, Z_i \in \{0, 1\}$ for $N$ individuals give a $2 \times 2$ table.
+
+- Shuffle $Z$ against $W$. The margins stay fixed, so one cell sets the table.
+- $T = A_{11}$, the number with $W = 1$ and $Z = 1$.
+
+This is **Fisher's exact test**. Shuffling gives the hypergeometric null without the formula.
+
+## Example: graduate admissions at Berkeley, 1973
+
+`UCBAdmissions` (shipped with R): applications to the six largest departments.
+
+```{r ucb-data}
+ucb <- as.data.frame(UCBAdmissions) %>% uncount(Freq)
+ucb_admit <- ucb$Admit == "Admitted"
+ucb_female <- ucb$Gender == "Female"
+dept <- ucb$Dept
+```
+
+Pooled over departments, `r round(100 * mean(ucb_admit[ucb_female]))`% of `r sum(ucb_female)` women and `r round(100 * mean(ucb_admit[!ucb_female]))`% of `r sum(!ucb_female)` men were admitted.
+
+**$H_0$**: admission is independent of gender.
+
+## Pooled test of admission and gender
+
+$T = A_{11}$, women admitted. One-sided: were women admitted less often?
+
+```{r ucb-pooled}
+a_obs <- sum(ucb_admit & ucb_female)
+a_null <- replicate(B, sum(ucb_admit & sample(ucb_female)))
+c(observed = a_obs, null_mean = mean(a_null),
+  p_lower = pval(-a_null, -a_obs))
+```
+
+`r a_obs` women were admitted, against `r round(mean(a_null))` expected under independence.
+
+## Admission rates by department
+
+```{r ucb-rates, echo=FALSE}
+ucb %>%
+  group_by(Dept) %>%
+  summarize(applicants = n(),
+            pct_female = round(100 * mean(Gender == "Female")),
+            admit_female = round(100 * mean(Admit[Gender == "Female"] == "Admitted")),
+            admit_male = round(100 * mean(Admit[Gender == "Male"] == "Admitted"))) %>%
+  knitr::kable()
+```
+
+Women applied mostly to selective departments. Within departments, they were admitted at about men's rate or higher.
+
+## Shuffling within strata
+
+**$H_0$**: within each department, admission is independent of gender.
+
+- **Condition on**: each applicant's department, and each department's totals.
+- **Rearrange**: gender, **within** department only.
+- **$T$**: $\sum_k A_{11k}$, women admitted, summed over departments.
+
+## Stratified test for the Berkeley data
+
+`shuffle_within()` shuffles $z$ within each level of $s$. Rows keep their order.
+
+```{r ucb-strata}
+shuffle_within <- function(z, s)
+  tibble(z, s) %>% group_by(s) %>% mutate(z = sample(z)) %>% pull(z)
+s_null <- replicate(B, sum(ucb_admit & shuffle_within(ucb_female, dept)))
+c(observed = a_obs, null_mean = mean(s_null),
+  p_two_sided = 2 * min(pval(s_null, a_obs), pval(-s_null, -a_obs)))
+```
+
+Within departments, `r a_obs` women admitted is close to the `r round(mean(s_null))` expected.
+
+## The Cochran-Mantel-Haenszel test
+
+The within-stratum null has mean $\sum_k E_k$ and variance $\sum_k V_k$, set by each department's margins. CMH compares
+$$\frac{\left(\sum_k A_{11k} - \sum_k E_k\right)^2}{\sum_k V_k},$$
+with $\chi^2_1$. It is a function of $T$, so the stratified permutation test is its exact version.
+
+```{r ucb-cmh}
+mantelhaen.test(UCBAdmissions, correct = FALSE)$p.value
+```
+
+Pooled, the data reject independence. Within departments, they do not.
+
+## Ordered categories and scores
+
+Give each ordered category a **score** $s$, and use $T = \sum_i s_i Z_i$.
+
+If a hidden $Y_i$ orders everyone and each category is a range of $Y$, the best guess for a rank is the middle of the category's ranks, the **midrank**:
+$$\{\#\text{ in lower categories}\} + \frac{\{\#\text{ in this category}\} + 1}{2}.$$
+
+These are deck 4's ranks with ties, and $T$ is a rank-sum statistic.
+
+## Example: alcohol and esophageal cancer
+
+`esoph` (shipped with R): a case-control study in France, `r sum(esoph$ncases)` cases and `r sum(esoph$ncontrols)` controls.
+
+```{r esoph-data}
+eso <- bind_rows(esoph %>% uncount(ncases) %>% mutate(case = TRUE),
+                 esoph %>% uncount(ncontrols) %>% mutate(case = FALSE))
+with(eso, table(alcohol = alcgp, case))
+```
+
+Half of the controls drink less than 40 g a day, against `r round(100 * mean(eso$alcgp[eso$case] == "0-39g/day"))`% of the cases.
+
+## Ages of cases and controls
+
+```{r esoph-age, echo=FALSE, fig.height=1.9, fig.width=6}
+eso %>%
+  count(agegp, group = ifelse(case, "cases", "controls")) %>%
+  group_by(group) %>% mutate(share = n / sum(n)) %>%
+  ggplot(aes(agegp, share, fill = group)) +
+  geom_col(position = "dodge") +
+  scale_fill_manual(values = c("black", "gray70")) +
+  labs(x = "age group", y = "share of group", fill = NULL)
+```
+
+Cases are older, and drinking varies with age, so compare within age groups.
+
+**$H_0$**: within each age group, cases and controls have the same distribution of alcohol use.
+
+## Midrank scores for alcohol groups
+
+```{r esoph-scores}
+eso <- eso %>% mutate(s = rank(as.integer(alcgp)))    # midranks
+eso %>% count(alcgp, s) %>%
+  mutate(lower = cumsum(n) - n, from_n = lower + (n + 1) / 2)
+```
+
+`from_n`, the formula, matches `rank()`. Everyone in a category gets the same score.
+
+$T = \sum_i s_i Z_i$ with $Z_i = 1$ for a case: the sum of the cases' midranks.
+
+## Rank-sum test within age groups
+
+```{r esoph-test}
+t_obs <- with(eso, sum(s * case))
+nulls <- with(eso, cbind(pooled = replicate(B, sum(s * sample(case))),
+  within_age = replicate(B, sum(s * shuffle_within(case, agegp)))))
+data.frame(mean = colMeans(nulls), sd = apply(nulls, 2, sd),
+           p = apply(nulls, 2, pval, t_obs = t_obs))
+```
+
+Observed $T$ = `r format(t_obs, big.mark = ",")`, `r round((t_obs - mean(nulls[, "within_age"])) / sd(nulls[, "within_age"]), 1)` SDs above the within-age null mean. $p = 0.001$ is the smallest possible with $B = 999$.
+
+# Summary
+
+## Summary: pairwise statistics
+
+| Test | $A_{ij}$ | $B_{ij}$ |
+|---|---|---|
+| Energy | distance | label weights |
+| Nearest neighbor | $j$ is $i$'s nearest neighbor | same label |
+| Two networks (QAP) | tie in network 1 | tie in network 2 |
+| Node attribute | tie | attribute gap |
+| Distance covariance | centered distance in $X$ | centered distance in $Y$ |
+
+$T = \sum_{i, j} A_{ij} B_{ij}$. Relabel rows and columns of $B$ together. Compute distances, neighbors and centering once.
+
+## Summary: rearrangements
+
+- **Equal distributions**: shuffle labels. Use all coordinates at once, and choose the units.
+- **Independence**: shuffle the pairing. $r$ measures only linear dependence; dCor is 0 only under independence.
+- **Networks**: relabel the nodes, rows and columns together.
+- **Strata**: shuffle within strata, the CMH test.
+- **Ordered categories**: midrank scores.

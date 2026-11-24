@@ -1,0 +1,100 @@
+---
+title: "The Inverse Transform: Recap"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 2: Generate, Session 1"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, out.width = "100%")
+library(ggplot2)
+```
+
+## Pseudorandom numbers
+
+A **PRNG** maps a seed to a number and a new seed:
+$$\text{seed}_k \;\longmapsto\; (U_k, \text{seed}_{k+1})$$
+
+- **Deterministic** (not inherently true randomness)
+- The **seed** makes a simulation **reproducible**: `set.seed()`.
+- It **repeats** eventually: the LCG after 8, Mersenne-Twister after $2^{19937} - 1$.
+- We cannot **prove** a generator is good, only **reject** bad ones.
+
+We will use `runif()` as our PRNG.
+
+## The quantile function
+
+For any random variable, with CDF $F_X(t) = \Pr(X \le t)$:
+$$Q_X(p) = \inf\left\{x : F_X(x) \ge p\right\}, \qquad p \in [0, 1]$$
+
+- "The **smallest** $x$ whose CDF reaches $p$."
+- Defined for **every** distribution: continuous, discrete, or mixed.
+- When $F_X$ is continuous and strictly increasing, $Q_X = F_X^{-1}$.
+- In R, `q` functions: `qnorm`, `qexp`, `qbinom`.
+
+## The inverse transform method
+
+For **continuous** $X$ and $U \sim U(0,1)$:
+$$Q_X(U) \sim X$$
+
+The recipe:
+
+1. Find the CDF $F(x)$.
+2. Set $u = F(x)$ and solve for $x$. That is $Q(u)$.
+3. Return $Q$ applied to `runif(n)`.
+
+Exponential: $u = 1 - e^{-\lambda x}$ gives $Q(u) = -\log(1 - u)/\lambda$, so `-log(runif(n)) / rate`.
+
+**Corollary** (probability integral transform): $F_X(X) \sim U(0,1)$.
+
+## Checking a sampler: QQ plots
+
+A quantile function **uniquely determines** a distribution.
+
+- Plot sample quantiles against the target's quantiles, $Q(u)$ for many $u$.
+- **On the 45 degree line**: the sampler matches the target.
+- **Off the line**: it does not.
+- `geom_qq(distribution = q_ours)` takes **any** quantile function, including one you wrote.
+
+That last point checks the sampler against **your math**, not against R.
+
+## Discrete variables: $Q$ is a step function
+
+The continuous proof fails: there may be no $x$ with $F(x) = u$. The method still works.
+
+$$Q(u) = x \quad \text{where} \quad F(x - 1) < u \le F(x)$$
+
+```{r fig.width=6, fig.height=1.6}
+d <- 1:9
+Fd <- log10(d + 1)
+u <- 0.5
+ggplot() +
+  geom_segment(aes(x = d, xend = d + 1, y = Fd, yend = Fd)) +
+  geom_point(aes(x = d, y = Fd), size = 1.5) +
+  geom_hline(yintercept = u, linetype = "dashed") +
+  annotate("point", x = 3, y = Fd[3], size = 3, shape = 1) +
+  scale_x_continuous(breaks = 1:9, limits = c(1, 10)) +
+  labs(x = "Leading digit d", y = "F(d)") +
+  theme_bw(base_size = 9)
+```
+
+Benford with $u = 0.5$: $F(2) = 0.477 < 0.5 \le 0.602 = F(3)$, so $d = 3$.
+
+## Two ways to compute a discrete $Q$
+
+**Walk the PMF.** Works for any PMF you can compute.
+
+1. Draw $u$, set $v = 0$.
+2. For $x_1 < x_2 < \ldots$: add $p(x_i)$ to $v$. Stop at the **first** $x_i$ with $v \ge u$.
+
+**Closed form.** When $F$ has one, solve $F(x - 1) < u \le F(x)$ directly.
+
+- Benford: $F(d) = \log_{10}(d + 1)$, so $Q(u) = \lceil 10^u - 1 \rceil$.
+- In R: `ceiling(10^runif(n) - 1)`.

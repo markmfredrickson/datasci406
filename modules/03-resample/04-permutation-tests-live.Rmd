@@ -1,0 +1,294 @@
+---
+title: "Permutation Tests: Through Part D"
+author: "Mark M. Fredrickson (mfredric@umich.edu)"
+institute: "Computational Methods in Statistics and Data Science (DATASCI 406)"
+date: "Module 3: Resample, Session 4"
+output:
+  beamer_presentation:
+    slide_level: 2
+    keep_tex: false
+    includes:
+      in_header: ../preamble.tex
+classoption: "aspectratio=169"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, out.width = "100%", cache = TRUE, autodep = TRUE)
+options(width = 60, digits = 4)
+set.seed(20261105)
+library(tidyverse)
+B <- 4000
+vt <- read.csv("../../data/flint_vt.csv")
+mdeq <- read.csv("../../data/flint_mdeq.csv")
+n <- nrow(vt)
+```
+
+## Today
+
+No video before this session. Each idea here is followed by the Part D item that uses it.
+
+| Idea | Then |
+|---|---|
+| flip signs under symmetry | D.1(a) |
+| invert the test | D.1(b) |
+| shuffle labels under $F = G$, choose $T$ | D.2(a) |
+| ranks | D.2(b) |
+| a parameter null | D.3 |
+
+The full deck is the video, posted before Tuesday. Turn in `project_d.html` on Canvas.
+
+## The recipe: condition, rearrange, compute, count
+
+Four things to name, every time:
+
+1. **$H_0$**: some rearrangement leaves the data's distribution unchanged.
+2. **Condition on** what $H_0$ says nothing about.
+3. **Rearrange** the rest. Given step 2, every rearrangement is equally likely under $H_0$.
+4. **$T$**: compute it on every rearrangement, or on $B$ random ones.
+
+$p$-value: the fraction of rearrangements with $T$ at least the observed value.
+
+No $F$ is needed, and the test is exact.
+
+## $H_0$ picks the rearrangement, the alternative picks $T$
+
+- The **rearrangement** comes from $H_0$. It makes the level of the test exact.
+- The **statistic** comes from the alternative. It decides which departures from $H_0$ the test can see.
+
+Today: **flip signs** and **shuffle labels**.
+
+# Rearrangement 1: Signs
+
+## Under symmetry, the signs are fair coins given the magnitudes
+
+$D_1, \ldots, D_n$ independent, not necessarily identically distributed.
+$$H_0: D_i - \theta_0 \text{ and } -(D_i - \theta_0) \text{ have the same distribution, for each } i.$$
+
+Write $D_i - \theta_0 = S_i \, |D_i - \theta_0|$, $S_i = \pm 1$. Under $H_0$, given the magnitudes, the $S_i$ are independent fair coins.
+
+- **Condition on**: the magnitudes $|D_i - \theta_0|$.
+- **Rearrange**: the signs. All $2^n$ patterns equally likely.
+- **$T$**: $\frac{1}{n} \sum_i (D_i - \theta_0)$, the mean of the signed differences.
+
+## If flushing does nothing, $D_i$ is symmetric about 0
+
+Deck 1: $D_i = \log X_i - \log Y_i$, first draw against after 2 minutes of flushing, in `r n` homes.
+
+**$H_0$**: flushing makes no difference, so the two bottles from a home are **exchangeable**: $(X_i, Y_i)$ and $(Y_i, X_i)$ have the same distribution.
+
+Then $\log X_i - \log Y_i$ and $\log Y_i - \log X_i$ have the same distribution: $D_i$ is symmetric about $\theta_0 = 0$.
+
+```{r flint-d}
+d <- log(vt$first_draw) - log(vt$flush_2min)
+round(d[11:20], 2)
+```
+
+## Ten homes: all 1024 patterns, $p = 2/1024$
+
+`expand.grid` lists every combination of its arguments, so each row of `S` is one of the $2^{10} = 1024$ sign patterns.
+
+```{r exact}
+d10 <- d[11:20]
+S <- as.matrix(expand.grid(rep(list(c(-1, 1)), 10)))
+null10 <- as.vector(S %*% abs(d10)) / 10
+c(observed = mean(d10), p = mean(null10 >= mean(d10) - 1e-12))
+```
+
+One of the ten is negative. Only the observed pattern and the all-positive one give $T$ that large.
+
+## 271 homes: draw patterns at random
+
+$2^{`r n`}$ patterns are too many to list. Draw $B$ at random, and use the $(1 + \#)/(B + 1)$ $p$-value from module 1.
+
+```{r mc-flip}
+t_obs <- mean(d)
+t_flip <- replicate(B, mean(sample(c(-1, 1), n, replace = TRUE) * abs(d)))
+c(observed = t_obs, max_null = max(t_flip),
+  p = (1 + sum(t_flip >= t_obs)) / (B + 1))
+```
+
+The null is symmetric about 0, so a two-sided test compares $|T^*|$ with $|T|$.
+
+## Now: D.1(a)
+
+Saturday minus the Sunday after it, 105 weekends. $H_0$: each $D_i$ symmetric about 0.
+
+- `d <- bikes$total[sat] - bikes$total[sat + 1]`
+- $B = 10{,}000$ random sign patterns on `abs(d)`, $T = \bar D^*$.
+- Two-sided: $(1 + \#\{|T^*| \ge |T|\}) / (B + 1)$.
+
+Name the four cells before you run it. Not `sample(d)`: that keeps every value and gives $p = 1$.
+
+Check: $T \approx 320$, $p \approx 0.009$.
+
+## Inverting the test gives an interval
+
+Keep every $\theta_0$ the two-sided 5% test does not reject. The kept values are a 95% interval.
+
+At $\theta_0$, flip the signs of $d_i - \theta_0$. One sign matrix serves every $\theta_0$:
+$$T^*_b(\theta_0) = \frac{1}{n} \sum_i S_{bi} (d_i - \theta_0) = \underbrace{\frac{1}{n} \sum_i S_{bi} d_i}_{\texttt{S \%*\% d / n}} - \theta_0 \, \underbrace{\frac{1}{n} \sum_i S_{bi}}_{\texttt{rowMeans(S)}}.$$
+
+The null is symmetric about 0, so compare $|T^*|$ with $|T|$.
+
+## One sign matrix serves every $\theta_0$
+
+```{r invert}
+S <- matrix(sample(c(-1, 1), B * n, replace = TRUE), B)
+Sd <- as.vector(S %*% d) / n
+Sbar <- rowMeans(S)
+p_two <- function(theta0) {
+  t0 <- mean(d) - theta0
+  (1 + sum(abs(Sd - theta0 * Sbar) >= abs(t0))) / (B + 1)
+}
+grid <- seq(1.2, 1.7, by = 0.002)
+range(grid[map_dbl(grid, p_two) > 0.05])
+```
+
+## Now: D.1(b)
+
+- `S`: $10{,}000 \times 105$ random signs. `Sd <- S %*% d / 105`, `Sbar <- rowMeans(S)`.
+- `p_two(theta0)`: two-sided $p$-value of $T = \bar d - \theta_0$.
+- `map_dbl` over `seq(-200, 800, by = 2)`. Keep $p > 0.05$, report the range.
+- Compare with `t.test(d)$conf.int`.
+
+Check: the two intervals nearly agree, about 80 to 565 rentals.
+
+# Rearrangement 2: Labels
+
+## Under $F = G$, every split of the pooled values is equally likely
+
+$X_1, \ldots, X_m \iid F$ and $Y_1, \ldots, Y_n \iid G$, independent.
+
+- **$H_0$**: $F = G$. The $N = m + n$ pooled values are then iid, and the labels carry no information.
+- **Condition on**: the pooled values.
+- **Rearrange**: the labels. Each of the $\binom{N}{m}$ splits into $m$ and $n$ is equally likely.
+- **$T$**: $\bar X - \bar Y$, to start.
+
+Shuffle the labels, recompute $T$, count.
+
+## Did MDEQ and Virginia Tech sample the same distribution?
+
+In 2015 MDEQ collected `r nrow(mdeq)` samples, and Virginia Tech collected `r nrow(vt)` first-draw samples.
+
+```{r two-plot, echo=FALSE, fig.height=2.0, fig.width=6}
+z <- c(mdeq$lead, vt$first_draw)
+g <- rep(c(TRUE, FALSE), c(nrow(mdeq), nrow(vt)))
+ggplot(data.frame(lead = z, sample = ifelse(g, "MDEQ", "Virginia Tech")),
+       aes(lead + 0.1, color = sample)) +
+  stat_ecdf() + scale_x_log10() +
+  labs(x = "lead + 0.1 (ppb, log scale)", y = "empirical CDF")
+```
+
+## Shuffle the labels: the difference in means does not reject
+
+`g` is `TRUE` for the MDEQ samples. `sample(g)` shuffles the labels and keeps the group sizes.
+
+```{r perm-mean}
+diff_means <- function(z, g) mean(z[g]) - mean(z[!g])
+t_obs <- diff_means(z, g)
+t_perm <- replicate(B, diff_means(z, sample(g)))
+c(observed = t_obs, p = (1 + sum(abs(t_perm) >= abs(t_obs))) / (B + 1))
+```
+
+## The rearrangement gives the level, the statistic gives the power
+
+$H_0$ fixes the rearrangement. Any $T$ gives an exact test from the same shuffles.
+
+- **Difference in means**: a shift in the center. Sensitive to the largest values.
+- **Difference in medians**: a shift in the middle.
+- **Kolmogorov-Smirnov**, $D = \max_x |\hat F_m(x) - \hat G_n(x)|$: any difference between the two CDFs.
+
+Choose $T$ before looking. Trying several and reporting the smallest $p$-value invalidates the test.
+
+## Three statistics from the same shuffles
+
+```{r perm-three}
+ks_stat <- function(z, g) max(abs(ecdf(z[g])(z) - ecdf(z[!g])(z)))
+three <- function(z, g) c(mean = diff_means(z, g),
+                          median = median(z[g]) - median(z[!g]),
+                          ks = ks_stat(z, g))
+t3 <- three(z, g)
+perm3 <- replicate(B, three(z, sample(g)))
+(1 + rowSums(abs(perm3) >= abs(t3))) / (B + 1)
+```
+
+## KS finds the gap at 0, a difference in recording
+
+```{r ks-where}
+v <- sort(unique(z))
+gap <- ecdf(z[g])(v) - ecdf(z[!g])(v)
+c(at = v[which.max(abs(gap))], gap = gap[which.max(abs(gap))])
+```
+
+- MDEQ recorded whole numbers, `r sum(mdeq$lead == 0)` of them 0. No Virginia Tech sample is below `r min(vt$first_draw)` ppb.
+- The null is **equal distributions**. A $T$ that sees the whole distribution finds any difference, including one in recording.
+
+## Now: D.2(a)
+
+Working days against weekends and holidays, `total` rentals. $H_0$: $F = G$.
+
+- `three(z, g)`: difference in means, difference in medians, KS at `sort(unique(z))`.
+- $B = 4000$ shuffles of `g`, all three statistics on each, three $p$-values.
+- Where are the two CDFs farthest apart, and what fraction of each group is below it?
+
+Check: only KS rejects, $p$ near 0.10, 0.46 and 0.04. The gap is near 3500 rentals, 27% of working days at or below it against 38% of the others.
+
+## Ranks: same $H_0$, same shuffle, a $T$ that forgets the data
+
+- Replace each value by its **rank** in the pooled sample, from 1 to $N$. $T = W$, the sum of the $X$ ranks.
+- Under $H_0$, with no ties, the $X$ ranks are a random $m$-subset of $\{1, \ldots, N\}$.
+- The null depends only on $m$ and $n$, so it could be tabulated. That is what rank tests were for.
+
+```{r rank-sum}
+r <- rank(z); w_obs <- sum(r[g]); mid <- sum(g) * (length(z) + 1) / 2
+w_perm <- replicate(B, sum(r[sample(g)]))
+c(permutation = (1 + sum(abs(w_perm - mid) >= abs(w_obs - mid))) / (B + 1),
+  wilcox = wilcox.test(mdeq$lead, vt$first_draw)$p.value)
+```
+
+## Now: D.2(b)
+
+- `rank(z)`, and $W$ = the sum of the working-day ranks.
+- Center at $m(N + 1)/2$, shuffle $B = 4000$ times, two-sided $p$-value on $|W^* - m(N+1)/2|$.
+- Compare with `wilcox.test(z[g], z[!g])$p.value`.
+
+Check: both $p$-values near 0.12, and neither rejects.
+
+# Equality or a Parameter?
+
+## $F = G$ is stronger than $\theta_F = \theta_G$
+
+- The shuffle tests **equality**, $F = G$, exactly.
+- The question is often a **parameter**: $\theta_F = \theta_G$, the two means, say.
+- $F = G$ implies $\theta_F = \theta_G$, not the reverse.
+- Under $\theta_F = \theta_G$ with $F \neq G$, shuffled data do not look like the original. The level is no longer exact.
+
+## Equal means, unequal spreads
+
+- Shuffling pools the variances: the permutation SE of $\bar X - \bar Y$ uses $\hat\sigma^2_{\text{pooled}} (1/m + 1/n)$. The truth is $\sigma_X^2 / m + \sigma_Y^2 / n$.
+- **Small group, large spread**: the permutation SE is too small and the test over-rejects. The other way, it under-rejects.
+- **Welch's $t$** divides by $\sqrt{s_X^2 / m + s_Y^2 / n}$, each group's own variance. Its true and permutation nulls both approach $N(0, 1)$, so the level holds in the limit.
+- For $F = G$, any $T$. For a parameter, studentize.
+
+## Now: D.3
+
+Casual riders differ between the groups in mean **and** spread. Build populations with equal means and the observed spreads, and check the level.
+
+- Center `casual` within each group. Report the sizes and SDs.
+- $R = 500$ datasets: resample each group's centered values with replacement.
+- In each, a permutation test with $B = 400$ shuffles for the difference in means and for Welch's $t$. Record $p \le 0.05$.
+- Report the two rejection rates. Which group is small with a large spread?
+
+Check: the 231 other days have SD about 870, the 500 working days about 390. The difference in means rejects about 14% of the time, Welch's about 6%.
+
+## Summary: the four cells
+
+| $H_0$ | condition on | rearrange | $T$ |
+|---|---|---|---|
+| $D_i$ symmetric about $\theta_0$ | the magnitudes | the signs, $2^n$ patterns | $\bar D$ |
+| $F = G$ | the pooled values | the labels, $\binom{N}{m}$ splits | any: mean, median, KS, rank sum |
+| $\theta_F = \theta_G$ only | the pooled values | the labels, no longer equally likely | studentize |
+
+- The rearrangement comes from $H_0$ and sets the level.
+- The statistic comes from the alternative and sets the power.
+- Invert the test for an interval. One matrix serves every $\theta_0$.

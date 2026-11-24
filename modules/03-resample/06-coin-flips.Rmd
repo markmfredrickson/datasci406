@@ -1,0 +1,236 @@
+---
+title: "Fair Coins: Module 3 Practice Project"
+author: "Your Name, Your Uniqname"
+output:
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE, fig.width = 6, fig.height = 3)
+set.seed(20261112)
+library(tidyverse)
+
+# The worked copy shows only the solution code, so it hides the chunks with
+# stubs. It is the copy whose source still has solution blocks.
+src <- knitr::current_input(dir = TRUE)
+worked <- !is.null(src) && any(grepl("^### Solution", readLines(src)))
+knitr::opts_hooks$set(skeleton = function(options) {
+  if (worked) options$eval <- options$include <- FALSE
+  options
+})
+```
+
+# Directions
+
+This project uses the data from
+
+> Bartoš, F., et al. (2025). Fair coins tend to land on the same side they
+> started: Evidence from 350,757 flips. *Journal of the American Statistical
+> Association*, 120(552), 2118--2127.
+
+The paper tests a prediction of Diaconis, Holmes and Montgomery (2007): a
+flipped coin lands on the side it started on about 51% of the time. 48 people
+flipped coins, recorded the side facing up before each flip, and recorded
+how each coin landed.
+
+This project asks a different question from the paper's: how much do people
+differ in how often their coins land on the starting side?
+
+The project has one task for each video of the module. The practice exam asks about this
+document, the same way the real exam asks about your project.
+
+This document is also turn-in 3.6, worth 1 point for completion. Each task
+has a chunk with a function for you to write and code that uses it. Write
+the function, and write your answers after each **Answer:**. Knit to HTML and
+upload the `.html` file to Canvas. Until you write a function, the code
+after it shows wrong values or an error. That is expected.
+
+# The data
+
+Each row is one person. `n_ht` counts the flips that started heads up and
+landed tails, and so on. `rate` is the person's same-side rate.
+
+```{r data}
+coins <- read.csv("../../data/coins.csv") %>%
+  mutate(n = n_hh + n_ht + n_th + n_tt,
+         same = n_hh + n_tt,
+         rate = same / n)
+coins %>% arrange(desc(rate)) %>% head(3)
+c(people = nrow(coins), flips = sum(coins$n))
+```
+
+Say person $i$'s coin lands on its starting side with probability $p_i$. The
+target throughout is $\tau$, the SD of the $p_i$ across people. If everyone
+had the same $p$, $\tau$ would be 0.
+
+A single flip has SD $\sqrt{p_i(1 - p_i)}$, which is about 0.5 for every
+person and tells us nothing that $p_i$ does not. Instead we use the SD of the
+48 rates, $s$. It is larger than $\tau$, because each rate differs from its
+$p_i$ by binomial noise with SD $\sqrt{p_i(1 - p_i)/n_i}$. The code below
+computes $s$ and the SD the rates would have from that noise alone, with
+every $p_i$ set to the pooled rate.
+
+```{r sd}
+sd_rate <- function(d) sd(d$rate)
+p_pool <- sum(coins$same) / sum(coins$n)
+noise_only <- sqrt(mean(p_pool * (1 - p_pool) / coins$n))
+c(s = sd_rate(coins), noise_only = noise_only)
+```
+
+# Part A: The bootstrap
+
+Treat the 48 people as a sample from a population of people who flip coins.
+
+## Task A
+
+- Write `boot_people(d, stat, B)`, which resamples the rows of `d` with
+  replacement `B` times and returns `stat` on each.
+- Run the chunk. It reports the bootstrap SE, bias and 95% percentile
+  interval of $s$.
+- Does the interval contain the noise-only SD?
+
+```{r a, skeleton = TRUE}
+boot_people <- function(d, stat, B) { rep(stat(d), B) }
+
+set.seed(20261112)
+boot_a <- boot_people(coins, sd_rate, 2000)
+c(s = sd_rate(coins), boot_se = sd(boot_a), bias = mean(boot_a) - sd_rate(coins))
+quantile(boot_a, c(0.025, 0.975))
+```
+
+**Answer:**
+
+# Part B: The jackknife
+
+With $\hat\theta_{(i)}$ the estimate without person $i$, the jackknife SE is
+$$\widehat{\text{SE}} = \sqrt{\frac{k - 1}{k} \sum_{i=1}^k \left(\hat\theta_{(i)} - \bar\theta\right)^2},
+\qquad \bar\theta = \frac{1}{k}\sum_{i=1}^k \hat\theta_{(i)}.$$
+
+## Task B
+
+- Write `jackknife(d, stat)`, which returns the $k$ values of `stat` with
+  each row of `d` left out.
+- Run the chunk. It reports the jackknife SE of $s$, and $s$ without the
+  person with the highest rate.
+- How does the jackknife SE compare with Part A's bootstrap SE?
+- How much does leaving out the person with the highest rate change $s$?
+
+```{r b, skeleton = TRUE}
+jackknife <- function(d, stat) { rep(stat(d), nrow(d)) }
+
+jack_se <- function(theta) {
+  k <- length(theta)
+  sqrt((k - 1) / k * sum((theta - mean(theta))^2))
+}
+loo <- jackknife(coins, sd_rate)
+top <- which.max(coins$rate)
+c(s = sd_rate(coins), jackknife_se = jack_se(loo), without_top = loo[top])
+```
+
+**Answer:**
+
+# Part C: Resampling structured data
+
+Part A drew new people. To see how much of the uncertainty in $s$ comes from
+flips alone, keep the 48 people and resample flips within each person, as
+deck 3 resampled states within each region. Resampling person $i$'s $n_i$
+flips with replacement gives a same-side count that is
+$\text{Binomial}(n_i, \text{rate}_i)$, so `rbinom` draws it without
+handling single flips.
+
+## Task C
+
+- Write `boot_within(d, stat, B)`, which `B` times replaces each person's
+  rate with a resampled rate and returns `stat` on each.
+- Run the chunk. It compares the SE of $s$ with Part A's.
+- Why is the SE from resampling within people smaller?
+- Which SE would you report for the population of people who flip coins?
+
+```{r c, skeleton = TRUE}
+boot_within <- function(d, stat, B) { rep(stat(d), B) }
+
+set.seed(20261112)
+boot_c <- boot_within(coins, sd_rate, 2000)
+c(within_se = sd(boot_c), people_se = sd(boot_a))
+```
+
+**Answer:**
+
+# Part D: Permutation tests
+
+Test $H_0$: every person has the same $p$. Under $H_0$ the flips are
+exchangeable across people, so shuffle the same-side outcomes among all
+350,757 flips, keeping each person's $n_i$, and use $T = s$.
+
+To shuffle, give each flip its person's row number, with
+`person <- rep(seq_len(nrow(d)), d$n)`. A shuffle picks which `sum(d$same)`
+flips are same-side, using `sample`, and `tabulate` counts them by person.
+
+## Task D
+
+- Write `shuffle_flips(d, B)`, which returns `B` values of $s$ from
+  shuffled data.
+- Run the chunk, which takes about 15 seconds. It reports the null mean of
+  $s$, the $p$-value, and an estimate of $\tau$ from
+  $\hat\tau^2 = s^2 - \overline{T^2_{\text{null}}}$, the observed variance
+  of the rates minus its average under $H_0$. It repeats the test without
+  the person with the highest rate.
+- Do people differ?
+- Does the answer depend on the person with the highest rate?
+
+```{r d, skeleton = TRUE}
+shuffle_flips <- function(d, B) { rep(sd_rate(d), B) }
+
+test_d <- function(d, B = 1000) {
+  t_null <- shuffle_flips(d, B)
+  s <- sd_rate(d)
+  c(s = s, null_mean = mean(t_null),
+    p = (1 + sum(t_null >= s)) / (B + 1),
+    tau = sqrt(max(0, s^2 - mean(t_null^2))))
+}
+set.seed(20261112)
+res_d <- rbind(all = test_d(coins), without_top = test_d(coins[-top, ]))
+res_d
+```
+
+**Answer:**
+
+# Part E: Vectors
+
+Split each person's flips by starting side. `rate_h` is the fraction of
+heads starts that landed heads, and `rate_t` the fraction of tails starts
+that landed tails. Both estimate the same $p_i$, and their binomial noise is
+independent, because they come from different flips. So
+$\text{Cov}(\text{rate}_h, \text{rate}_t)$ across people estimates $\tau^2$
+with no noise to subtract.
+
+Test $H_0$: `rate_h` and `rate_t` are independent, by shuffling the pairing
+and using $T = r$, Pearson's correlation. If $\tau = 0$, $H_0$ holds.
+
+## Task E
+
+- Write `pair_null(x, y, B)`, which returns `B` values of $r$ with `y`
+  shuffled.
+- Run the chunk. It reports a two-sided $p$-value and
+  $\hat\tau = \sqrt{\text{Cov}}$, with and without the person with the
+  highest rate.
+- How do these estimates of $\tau$ compare with Part D's?
+
+```{r e, skeleton = TRUE}
+pair_null <- function(x, y, B) { rep(0, B) }
+
+coins <- coins %>%
+  mutate(rate_h = n_hh / (n_hh + n_ht), rate_t = n_tt / (n_th + n_tt))
+test_e <- function(d, B = 10000) {
+  t_null <- pair_null(d$rate_h, d$rate_t, B)
+  r <- cor(d$rate_h, d$rate_t)
+  c(r = r, p = (1 + sum(abs(t_null) >= abs(r))) / (B + 1),
+    tau = sqrt(max(0, cov(d$rate_h, d$rate_t))))
+}
+set.seed(20261112)
+res_e <- rbind(all = test_e(coins), without_top = test_e(coins[-top, ]))
+res_e
+```
+
+**Answer:**
+
